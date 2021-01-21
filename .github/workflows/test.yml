@@ -25,3 +25,8 @@ jobs:
           ctpUsername: 'admin'
           ctpPassword: 'admin'
           ctpJob: 'Status Job'
+          publishReport: 'true'
+          dtpUrl: 'http://54.149.98.67:8080'
+          dtpUsername: 'demo'
+          dtpPassword: 'demo-user'
+          dtpProject: 'Parabank-v3'
