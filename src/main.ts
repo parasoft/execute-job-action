@@ -164,13 +164,13 @@ if (dtpEndpoint && publish) {
 const abortOnTimout = core.getInput('abortOnTimeout') === 'true';
 const timeout = core.getInput('timeoutInMinutes');
 
-function uploadFile<T>(): q.Promise<T>{
+function uploadFile<T>(reportId: number): q.Promise<T>{
     let def = q.defer<T>();
     dtpService.performGET('/api/v1.6/services').then((response: any) => {
         let dataCollectorURL = url.parse(response.services.dataCollectorV2);
         let form = new FormData();
         let protocol: 'https:' | 'http:' = dataCollectorURL.protocol === 'https:' ? 'https:' : 'http:';
-        form.append('file', fs.createReadStream('report.xml'));
+        form.append('file', fs.createReadStream(`${reportId}/report.xml`));
         let options: FormData.SubmitOptions = {
             host: dataCollectorURL.hostname,
             port: parseInt(dataCollectorURL.port),
@@ -257,7 +257,10 @@ function publishReport(reportId: number, index: number, environmentName?: string
                 fileData = injectMetaData(fileData, index, appendEnvironmentSet ? environmentName : null);
                 firstCallback = false;
             }
-            fs.appendFile('report.xml', fileData, (error) => {
+            if (!fs.existsSync(`${reportId}`)){
+                fs.mkdirSync(`${reportId}`);
+            }
+            fs.appendFile(`${reportId}/report.xml`, fileData, (error) => {
                 if (error) {
                     core.error(`Error writing report.xml: ${error.message}`);
                     throw error;
@@ -266,7 +269,7 @@ function publishReport(reportId: number, index: number, environmentName?: string
             return '';
         }).then(() => {
             core.debug(`    View Report:  ${ctpService.getBaseURL()}/testreport/${reportId}/report.html`);
-            uploadFile().then(response => {
+            uploadFile(reportId).then(response => {
                 core.debug(`   report.xml file upload successful: ${response}`);
                 core.debug(`   View Result in DTP: ${dtpService.getBaseURL()}/dtp/explorers/test?buildId=${dtpBuildId}`);
             }).catch((error) => {
