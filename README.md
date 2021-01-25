@@ -22,12 +22,10 @@ with:
 The following inputs are required:
 | Input | Description |
 | --- | --- |
-| `ctpURL` | Specifies the Continuous Testing Platform endpoint where the environment will be deployed. |
+| `ctpURL` | Specifies the Continuous Testing Platform endpoint to use for executing the job. |
 | `ctpUsername` | Specifies a user name for accessing the Continuous Testing Platform endpoint. |
 | `ctpPassword` | Specifies a Github encrypted secret for accessing the Continuous Testing Platform endpoint. Refer to the [Encrypted Secrets Documentation](https://docs.github.com/en/actions/reference/encrypted-secrets) for details on how to create an encrypted secret. |
-| `system` | Specifies the name of the system in Continous Testing Platform that contains the environment instance you want to provision. |
-| `environment` | Specifies the name of the environment that contains the instances you want to provision. |
-| `instance` | Specifies the environment instance you want to provision. |
+| `ctpJob` | Specifies the name of job to run. |
 
 ### Optional Inputs
 The following inputs are optional:
