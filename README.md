@@ -30,7 +30,7 @@ The following inputs are required:
 | `instance` | Specifies the environment instance you want to provision. |
 
 ### Optional Inputs
-The following inputs are optionsl:
+The following inputs are optional:
 | Input | Description |
 | --- | --- |
 | `abortOnTimeout` | Aborts a job when the execution time exceeds the specified timeout (see `timeoutInMinutes`). Set to `true` to enable. Default is `false`. |
