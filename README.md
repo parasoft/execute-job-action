@@ -40,7 +40,7 @@ The following inputs are optional:
 | `dtpProject` | Specifies the name of the DTP project to associate with the test execution results. Include this option if `publishReport` is set to `true`. |
 | `buildId` | Specifies the build identifier used to filter test results in DTP. Include this option if `publishReport` is set to `true`. |
 | `sessionTag` | Specifies an identifier for the specific test execution session. Include this option if `publishReport` is set to `true`. |
-| `appendEnvironmentSet` | Adds an execution environment setting variable (`exec.env`) to the session tag when publishing to DTP. This enables you to aggregate test data according to execution environment, which can be displayed in DTP widgets and reports. Set to `true` to enable. Default is `false`. |
+| `appendEnvironment` | Adds a test variable test environment name to the session tag when publishing to DTP. This enables you to aggregate test data according to execution environment, which can be displayed in DTP widgets and reports. Set to `true` to enable. Default is `false`. |
 
 ## Build and Test this Action Locally
 

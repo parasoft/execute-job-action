@@ -1,11 +1,49 @@
-name: 'Your name here'
-description: 'Provide a description here'
-author: 'Your name or organization here'
+name: 'Execute Job'
+description: 'Execute a job in Parasoft Continuout Testing Platform'
+author: 'Parasoft'
 inputs:
-  milliseconds: # change this
+  ctpUrl:
     required: true
-    description: 'input description here'
-    default: 'default value if applicable'
+    description: 'CTP URL'
+  ctpUsername:
+    required: true
+    description: 'CTP Username'
+  ctpPassword:
+    required: true
+    description: 'CTP Password'
+  ctpJob:
+    required: true
+    description: 'CTP Test Execution Job Name'
+  abortOnTimeout:
+    required: false
+    description: 'Abort the job after timeout exceeded'
+  timeoutInMinutes:
+    required: false
+    description: 'Timeout value in minutes'
+  publishReport:
+    required: false
+    description: 'Publish test execution results to DTP'
+  dtpUrl:
+    required: false
+    description: 'DTP URL'
+  dtpUsername:
+    required: false
+    description: 'DTP Username'
+  dtpPassword:
+    required: false
+    description: 'DTP Password'
+  dtpProject:
+    required: false
+    description: 'DTP Project Name'
+  buildId:
+    required: false
+    description: 'Build ID to send to DTP'
+  sessionTag:
+    required: false
+    description: 'Session Tag to send to DTP'
+  appendEnvironment:
+    required: false
+    description: 'Append the test variable set environment name to the session tag'
 runs:
   using: 'node12'
   main: 'dist/index.js'

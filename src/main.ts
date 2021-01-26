@@ -157,7 +157,7 @@ if (dtpEndpoint) {
 const dtpProject = core.getInput('dtpProject');
 const dtpBuildId = core.getInput('buildId');
 let dtpSessionTag = core.getInput('sessionTag');
-const appendEnvironmentSet = core.getInput('appendEnvironmentSet') === 'true';
+const appendEnvironment = core.getInput('appendEnvironment') === 'true';
 if (dtpEndpoint && publish) {
     dtpService = new WebService(dtpEndpoint, 'grs', dtpAuthorization);
 }
@@ -254,7 +254,7 @@ function publishReport(reportId: number, index: number, environmentName?: string
         (response) => {
             let fileData = response;
             if (firstCallback) {
-                fileData = injectMetaData(fileData, index, appendEnvironmentSet ? environmentName : null);
+                fileData = injectMetaData(fileData, index, appendEnvironment ? environmentName : null);
                 firstCallback = false;
             }
             if (!fs.existsSync(`${reportId}`)){
