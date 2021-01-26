@@ -1,6 +1,9 @@
 name: 'Execute Job'
 description: 'Execute a job in Parasoft Continuout Testing Platform'
 author: 'Parasoft'
+branding:
+  icon: 'aperture'
+  color: 'blue'
 inputs:
   ctpUrl:
     required: true
