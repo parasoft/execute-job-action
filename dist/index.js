@@ -3,7 +3,7 @@ require('./sourcemap-register.js');module.exports =
 /******/ 	var __webpack_modules__ = ({
 
 /***/ 109:
-/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
 "use strict";
 
@@ -31,13 +31,13 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-const core = __importStar(__webpack_require__(186));
-const http_1 = __importDefault(__webpack_require__(605));
-const https_1 = __importDefault(__webpack_require__(211));
-const form_data_1 = __importDefault(__webpack_require__(334));
-const q_1 = __importDefault(__webpack_require__(172));
-const url_1 = __importDefault(__webpack_require__(835));
-const fs_1 = __importDefault(__webpack_require__(747));
+const core = __importStar(__nccwpck_require__(186));
+const http_1 = __importDefault(__nccwpck_require__(605));
+const https_1 = __importDefault(__nccwpck_require__(211));
+const form_data_1 = __importDefault(__nccwpck_require__(334));
+const q_1 = __importDefault(__nccwpck_require__(172));
+const url_1 = __importDefault(__nccwpck_require__(835));
+const fs_1 = __importDefault(__nccwpck_require__(747));
 class WebService {
     constructor(endpoint, context, authorization) {
         this.baseURL = url_1.default.parse(endpoint);
@@ -52,8 +52,8 @@ class WebService {
         this.protocolLabel = this.baseURL.protocol || 'http:';
     }
     performGET(path, handler, dataHandler) {
-        var def = q_1.default.defer();
-        var options = {
+        let def = q_1.default.defer();
+        let options = {
             host: this.baseURL.hostname,
             path: this.baseURL.path + path,
             auth: undefined,
@@ -72,7 +72,7 @@ class WebService {
             options.auth = this.authorization['username'] + ':' + this.authorization['password'];
         }
         core.debug(`GET ${this.protocolLabel}//${options.host}${options.port ? `:${options.port}` : ""}${options.path}`);
-        var responseString = "";
+        let responseString = "";
         this.protocol.get(options, (res) => {
             res.setEncoding('utf8');
             res.on('data', (chunk) => {
@@ -85,7 +85,7 @@ class WebService {
             });
             res.on('end', () => {
                 if (res.statusCode === 302) {
-                    var redirectPath = res.headers.location;
+                    let redirectPath = res.headers.location;
                     if (redirectPath.startsWith(this.baseURL.path)) {
                         redirectPath = redirectPath.substring(3);
                     }
@@ -97,7 +97,7 @@ class WebService {
                 }
                 else {
                     core.debug(`   response ${res.statusCode}: ${responseString}`);
-                    var responseObject = JSON.parse(responseString);
+                    let responseObject = JSON.parse(responseString);
                     def.resolve(responseObject);
                 }
             });
@@ -117,8 +117,8 @@ class WebService {
         return this.performRequest(path, data, 'POST');
     }
     performRequest(path, data, method) {
-        var def = q_1.default.defer();
-        var options = {
+        let def = q_1.default.defer();
+        let options = {
             host: this.baseURL.hostname,
             path: this.baseURL.path + path,
             method: method,
@@ -139,15 +139,15 @@ class WebService {
             options.auth = this.authorization['username'] + ':' + this.authorization['password'];
         }
         core.debug(`${method} ${this.protocolLabel}//${options.host}${options.port ? `:${options.port}` : ""}${options.path}`);
-        var responseString = "";
-        var req = this.protocol.request(options, (res) => {
+        let responseString = "";
+        let req = this.protocol.request(options, (res) => {
             res.setEncoding('utf8');
             res.on('data', (chunk) => {
                 responseString += chunk;
             });
             res.on('end', () => {
                 core.debug(`    response ${res.statusCode}: ${responseString}`);
-                var responseObject = JSON.parse(responseString);
+                let responseObject = JSON.parse(responseString);
                 def.resolve(responseObject);
             });
         }).on('error', (e) => {
@@ -178,13 +178,13 @@ if (dtpEndpoint && publish) {
 }
 const abortOnTimout = core.getInput('abortOnTimeout') === 'true';
 const timeout = core.getInput('timeoutInMinutes');
-function uploadFile() {
+function uploadFile(reportId) {
     let def = q_1.default.defer();
     dtpService.performGET('/api/v1.6/services').then((response) => {
         let dataCollectorURL = url_1.default.parse(response.services.dataCollectorV2);
         let form = new form_data_1.default();
         let protocol = dataCollectorURL.protocol === 'https:' ? 'https:' : 'http:';
-        form.append('file', fs_1.default.createReadStream('report.xml'));
+        form.append('file', fs_1.default.createReadStream(`${reportId}/report.xml`));
         let options = {
             host: dataCollectorURL.hostname,
             port: parseInt(dataCollectorURL.port),
@@ -221,7 +221,7 @@ function uploadFile() {
     return def.promise;
 }
 function replaceAttributeValue(source, attribute, newValue) {
-    var regEx = new RegExp(attribute + '\=\"[^"]*\"');
+    let regEx = new RegExp(attribute + '\=\"[^"]*\"');
     return source.replace(regEx, attribute + '="' + newValue + '"');
 }
 function injectMetaData(source, index, environmentName) {
@@ -263,7 +263,10 @@ function publishReport(reportId, index, environmentName) {
             fileData = injectMetaData(fileData, index, appendEnvironmentSet ? environmentName : null);
             firstCallback = false;
         }
-        fs_1.default.appendFile('report.xml', fileData, (error) => {
+        if (!fs_1.default.existsSync(`${reportId}`)) {
+            fs_1.default.mkdirSync(`${reportId}`);
+        }
+        fs_1.default.appendFile(`${reportId}/report.xml`, fileData, (error) => {
             if (error) {
                 core.error(`Error writing report.xml: ${error.message}`);
                 throw error;
@@ -272,7 +275,7 @@ function publishReport(reportId, index, environmentName) {
         return '';
     }).then(() => {
         core.debug(`    View Report:  ${ctpService.getBaseURL()}/testreport/${reportId}/report.html`);
-        uploadFile().then(response => {
+        uploadFile(reportId).then(response => {
             core.debug(`   report.xml file upload successful: ${response}`);
             core.debug(`   View Result in DTP: ${dtpService.getBaseURL()}/dtp/explorers/test?buildId=${dtpBuildId}`);
         }).catch((error) => {
@@ -325,7 +328,7 @@ ctpService.performGET('/api/v2/jobs', (res, def, responseStr) => {
                     let environmentNames = extractEnvironmentNames(job);
                     res.reportIds.forEach((reportId, index) => {
                         core.debug(`    report location: /testreport/${reportId}/report.xml`);
-                        publishReport(reportId, index, environmentNames.length > 0 ? environmentNames.shift() : null).catch(err => {
+                        publishReport(reportId, index, environmentNames.length > 0 ? environmentNames.shift() : null).catch(() => {
                             core.error("Failed to publish report to DTP");
                         });
                     });
@@ -340,7 +343,7 @@ ctpService.performGET('/api/v2/jobs', (res, def, responseStr) => {
                     res.reportIds.forEach((reportId, index) => {
                         core.debug(`    report location: /testreport/${reportId}/report.xml`);
                         let environmentNames = extractEnvironmentNames(job);
-                        publishReport(reportId, index, environmentNames.length > 0 ? environmentNames.shift() : null).catch(err => {
+                        publishReport(reportId, index, environmentNames.length > 0 ? environmentNames.shift() : null).catch(() => {
                             core.error("Failed to publish report to DTP");
                         });
                     });
@@ -361,7 +364,7 @@ ctpService.performGET('/api/v2/jobs', (res, def, responseStr) => {
 /***/ }),
 
 /***/ 351:
-/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
 "use strict";
 
@@ -373,8 +376,8 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-const os = __importStar(__webpack_require__(87));
-const utils_1 = __webpack_require__(278);
+const os = __importStar(__nccwpck_require__(87));
+const utils_1 = __nccwpck_require__(278);
 /**
  * Commands
  *
@@ -447,7 +450,7 @@ function escapeProperty(s) {
 /***/ }),
 
 /***/ 186:
-/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
 "use strict";
 
@@ -468,11 +471,11 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-const command_1 = __webpack_require__(351);
-const file_command_1 = __webpack_require__(717);
-const utils_1 = __webpack_require__(278);
-const os = __importStar(__webpack_require__(87));
-const path = __importStar(__webpack_require__(622));
+const command_1 = __nccwpck_require__(351);
+const file_command_1 = __nccwpck_require__(717);
+const utils_1 = __nccwpck_require__(278);
+const os = __importStar(__nccwpck_require__(87));
+const path = __importStar(__nccwpck_require__(622));
 /**
  * The code to exit an action
  */
@@ -692,7 +695,7 @@ exports.getState = getState;
 /***/ }),
 
 /***/ 717:
-/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
 "use strict";
 
@@ -707,9 +710,9 @@ var __importStar = (this && this.__importStar) || function (mod) {
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 // We use any as a valid input type
 /* eslint-disable @typescript-eslint/no-explicit-any */
-const fs = __importStar(__webpack_require__(747));
-const os = __importStar(__webpack_require__(87));
-const utils_1 = __webpack_require__(278);
+const fs = __importStar(__nccwpck_require__(747));
+const os = __importStar(__nccwpck_require__(87));
+const utils_1 = __nccwpck_require__(278);
 function issueCommand(command, message) {
     const filePath = process.env[`GITHUB_${command}`];
     if (!filePath) {
@@ -754,13 +757,13 @@ exports.toCommandValue = toCommandValue;
 /***/ }),
 
 /***/ 812:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
 module.exports =
 {
-  parallel      : __webpack_require__(210),
-  serial        : __webpack_require__(445),
-  serialOrdered : __webpack_require__(578)
+  parallel      : __nccwpck_require__(210),
+  serial        : __nccwpck_require__(445),
+  serialOrdered : __nccwpck_require__(578)
 };
 
 
@@ -803,9 +806,9 @@ function clean(key)
 /***/ }),
 
 /***/ 794:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
-var defer = __webpack_require__(295);
+var defer = __nccwpck_require__(295);
 
 // API
 module.exports = async;
@@ -877,10 +880,10 @@ function defer(fn)
 /***/ }),
 
 /***/ 23:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
-var async = __webpack_require__(794)
-  , abort = __webpack_require__(700)
+var async = __nccwpck_require__(794)
+  , abort = __nccwpck_require__(700)
   ;
 
 // API
@@ -1003,10 +1006,10 @@ function state(list, sortMethod)
 /***/ }),
 
 /***/ 942:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
-var abort = __webpack_require__(700)
-  , async = __webpack_require__(794)
+var abort = __nccwpck_require__(700)
+  , async = __nccwpck_require__(794)
   ;
 
 // API
@@ -1039,11 +1042,11 @@ function terminator(callback)
 /***/ }),
 
 /***/ 210:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
-var iterate    = __webpack_require__(23)
-  , initState  = __webpack_require__(474)
-  , terminator = __webpack_require__(942)
+var iterate    = __nccwpck_require__(23)
+  , initState  = __nccwpck_require__(474)
+  , terminator = __nccwpck_require__(942)
   ;
 
 // Public API
@@ -1089,9 +1092,9 @@ function parallel(list, iterator, callback)
 /***/ }),
 
 /***/ 445:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
-var serialOrdered = __webpack_require__(578);
+var serialOrdered = __nccwpck_require__(578);
 
 // Public API
 module.exports = serial;
@@ -1113,11 +1116,11 @@ function serial(list, iterator, callback)
 /***/ }),
 
 /***/ 578:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
-var iterate    = __webpack_require__(23)
-  , initState  = __webpack_require__(474)
-  , terminator = __webpack_require__(942)
+var iterate    = __nccwpck_require__(23)
+  , initState  = __nccwpck_require__(474)
+  , terminator = __nccwpck_require__(942)
   ;
 
 // Public API
@@ -1195,11 +1198,11 @@ function descending(a, b)
 /***/ }),
 
 /***/ 443:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
-var util = __webpack_require__(669);
-var Stream = __webpack_require__(413).Stream;
-var DelayedStream = __webpack_require__(611);
+var util = __nccwpck_require__(669);
+var Stream = __nccwpck_require__(413).Stream;
+var DelayedStream = __nccwpck_require__(611);
 
 module.exports = CombinedStream;
 function CombinedStream() {
@@ -1410,10 +1413,10 @@ CombinedStream.prototype._emitError = function(err) {
 /***/ }),
 
 /***/ 611:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
-var Stream = __webpack_require__(413).Stream;
-var util = __webpack_require__(669);
+var Stream = __nccwpck_require__(413).Stream;
+var util = __nccwpck_require__(669);
 
 module.exports = DelayedStream;
 function DelayedStream() {
@@ -1524,18 +1527,18 @@ DelayedStream.prototype._checkIfMaxDataSizeExceeded = function() {
 /***/ }),
 
 /***/ 334:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
-var CombinedStream = __webpack_require__(443);
-var util = __webpack_require__(669);
-var path = __webpack_require__(622);
-var http = __webpack_require__(605);
-var https = __webpack_require__(211);
-var parseUrl = __webpack_require__(835).parse;
-var fs = __webpack_require__(747);
-var mime = __webpack_require__(583);
-var asynckit = __webpack_require__(812);
-var populate = __webpack_require__(142);
+var CombinedStream = __nccwpck_require__(443);
+var util = __nccwpck_require__(669);
+var path = __nccwpck_require__(622);
+var http = __nccwpck_require__(605);
+var https = __nccwpck_require__(211);
+var parseUrl = __nccwpck_require__(835).parse;
+var fs = __nccwpck_require__(747);
+var mime = __nccwpck_require__(583);
+var asynckit = __nccwpck_require__(812);
+var populate = __nccwpck_require__(142);
 
 // Public API
 module.exports = FormData;
@@ -2042,7 +2045,7 @@ module.exports = function(dst, src) {
 /***/ }),
 
 /***/ 426:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
 /*!
  * mime-db
@@ -2054,13 +2057,13 @@ module.exports = function(dst, src) {
  * Module exports.
  */
 
-module.exports = __webpack_require__(313)
+module.exports = __nccwpck_require__(313)
 
 
 /***/ }),
 
 /***/ 583:
-/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
 /*!
@@ -2077,8 +2080,8 @@ module.exports = __webpack_require__(313)
  * @private
  */
 
-var db = __webpack_require__(426)
-var extname = __webpack_require__(622).extname
+var db = __nccwpck_require__(426)
+var extname = __nccwpck_require__(622).extname
 
 /**
  * Module variables.
@@ -4385,7 +4388,7 @@ module.exports = require("util");;
 /******/ 	var __webpack_module_cache__ = {};
 /******/ 	
 /******/ 	// The require function
-/******/ 	function __webpack_require__(moduleId) {
+/******/ 	function __nccwpck_require__(moduleId) {
 /******/ 		// Check if module is in cache
 /******/ 		if(__webpack_module_cache__[moduleId]) {
 /******/ 			return __webpack_module_cache__[moduleId].exports;
@@ -4400,7 +4403,7 @@ module.exports = require("util");;
 /******/ 		// Execute the module function
 /******/ 		var threw = true;
 /******/ 		try {
-/******/ 			__webpack_modules__[moduleId].call(module.exports, module, module.exports, __webpack_require__);
+/******/ 			__webpack_modules__[moduleId].call(module.exports, module, module.exports, __nccwpck_require__);
 /******/ 			threw = false;
 /******/ 		} finally {
 /******/ 			if(threw) delete __webpack_module_cache__[moduleId];
@@ -4413,11 +4416,11 @@ module.exports = require("util");;
 /************************************************************************/
 /******/ 	/* webpack/runtime/compat */
 /******/ 	
-/******/ 	__webpack_require__.ab = __dirname + "/";/************************************************************************/
+/******/ 	__nccwpck_require__.ab = __dirname + "/";/************************************************************************/
 /******/ 	// module exports must be returned from runtime so entry inlining is disabled
 /******/ 	// startup
 /******/ 	// Load entry module and return exports
-/******/ 	return __webpack_require__(109);
+/******/ 	return __nccwpck_require__(109);
 /******/ })()
 ;
 //# sourceMappingURL=index.js.map
