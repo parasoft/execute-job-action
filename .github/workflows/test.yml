@@ -32,4 +32,4 @@ jobs:
           dtpProject: 'Parabank-v3'
           buildId: 'Parabank-v3-2021-01-21'
           sessionTag: 'Parabank-v3-Session'
-          appendEnvironmentSet: 'true'
+          appendEnvironment: 'true'
