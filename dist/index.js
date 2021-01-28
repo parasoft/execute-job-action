@@ -3,7 +3,7 @@ require('./sourcemap-register.js');module.exports =
 /******/ 	var __webpack_modules__ = ({
 
 /***/ 109:
-/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
 
 "use strict";
 
@@ -27,17 +27,321 @@ var __importStar = (this && this.__importStar) || function (mod) {
     __setModuleDefault(result, mod);
     return result;
 };
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.run = void 0;
+const core = __importStar(__webpack_require__(186));
+const service = __importStar(__webpack_require__(511));
+const report = __importStar(__webpack_require__(269));
+function extractEnvironmentNames(job) {
+    let separate = job.fork, lastTestId = null, environmentNames = [];
+    job.testScenarioInstances.forEach((instance => {
+        let testScenarioId = instance.testScenarioId, variableset = instance.variableSet;
+        if (separate || (lastTestId == null || lastTestId === testScenarioId)) {
+            environmentNames.push(variableset);
+        }
+        lastTestId = testScenarioId;
+    }));
+    return environmentNames;
+}
+function run() {
+    return __awaiter(this, void 0, void 0, function* () {
+        const ctpEndpoint = core.getInput('ctpUrl', { required: true });
+        const ctpUsername = core.getInput('ctpUsername', { required: true });
+        const ctpPassword = core.getInput('ctpPassword', { required: true });
+        const ctpService = new service.WebService(ctpEndpoint, 'em', { username: ctpUsername, password: ctpPassword });
+        let dtpService = null;
+        const publish = core.getInput('publishReport') === 'true';
+        const dtpEndpoint = core.getInput('dtpUrl', { required: false });
+        var dtpAuthorization = null;
+        if (dtpEndpoint) {
+            dtpAuthorization = { username: core.getInput('dtpUsername'), password: core.getInput('dtpPassword') };
+        }
+        const dtpProject = core.getInput('dtpProject');
+        const dtpBuildId = core.getInput('buildId');
+        let dtpSessionTag = core.getInput('sessionTag');
+        const appendEnvironmentSet = core.getInput('appendEnvironmentSet') === 'true';
+        if (dtpEndpoint && publish) {
+            let metaData = {
+                dtpProject: dtpProject,
+                dtpBuildId: dtpBuildId,
+                dtpSessionTag: dtpSessionTag,
+                appendEnvironmentSet: appendEnvironmentSet
+            };
+            dtpService = new report.ReportPublisher(dtpEndpoint, 'grs', ctpService, metaData, dtpAuthorization);
+        }
+        const abortOnTimout = core.getInput('abortOnTimeout') === 'true';
+        const timeout = core.getInput('timeoutInMinutes');
+        const jobName = core.getInput('ctpJob', { required: true });
+        let job;
+        ctpService.performGET('/api/v2/jobs', (res, def, responseStr) => {
+            core.debug(`    response ${res.statusCode}: ${responseStr}`);
+            let allJobs = JSON.parse(responseStr);
+            if (typeof allJobs.jobs === 'undefined') {
+                def.reject('jobs' + ' does not exist in response object from /api/v2/jobs');
+                return;
+            }
+            let match = allJobs.jobs.find(job => job.name === jobName);
+            if (match) {
+                def.resolve(match);
+                return;
+            }
+            def.reject(`Could not find name ${jobName} in jobs from /api/v2/jobs`);
+        }).then((response) => {
+            core.debug(`Found job ${response.name} with id ${response.id}`);
+            job = response;
+            return ctpService.performPOST(`/api/v2/jobs/${job.id}/histories?async=true`, {});
+        }).then((res) => {
+            let historyId = res.id;
+            let status = res.status;
+            let startTime = new Date().getTime();
+            let checkStatus = function () {
+                return __awaiter(this, void 0, void 0, function* () {
+                    ctpService.performGET(`/api/v2/jobs/${job.id}/histories/${historyId}`).then((res) => {
+                        status = res.status;
+                        if (abortOnTimout) {
+                            let timespent = (new Date().getTime() - startTime) / 60000, timeoutNum = parseInt(timeout);
+                            if (timespent > timeoutNum) {
+                                ctpService.performPUT(`/api/v2/jobs/${job.id}/histories/${historyId}`, { status: 'CANCELED' });
+                                core.error(`Test execution job timed out after ${timeoutNum} minute"${timeoutNum > 1 ? 's' : ""}.`);
+                                core.setFailed('Job ' + jobName + ' timed out.');
+                                return;
+                            }
+                        }
+                        if (status === 'RUNNING' || status === 'WAITING') {
+                            setTimeout(checkStatus, 1000);
+                        }
+                        else if (status === 'PASSED') {
+                            core.debug('Job ' + jobName + ' passed.');
+                            if (dtpService) {
+                                let environmentNames = extractEnvironmentNames(job);
+                                res.reportIds.forEach((reportId, index) => {
+                                    core.debug(`    report location: /testreport/${reportId}/report.xml`);
+                                    dtpService.publishReport(reportId, index, environmentNames.length > 0 ? environmentNames.shift() : null).catch(() => {
+                                        core.error("Failed to publish report to DTP");
+                                    });
+                                });
+                            }
+                        }
+                        else if (status === 'CANCELED') {
+                            core.warning('Job ' + jobName + ' canceled.');
+                        }
+                        else {
+                            core.error('Job ' + jobName + ' failed.');
+                            if (dtpService) {
+                                res.reportIds.forEach((reportId, index) => {
+                                    core.debug(`    report location: /testreport/${reportId}/report.xml`);
+                                    let environmentNames = extractEnvironmentNames(job);
+                                    dtpService.publishReport(reportId, index, environmentNames.length > 0 ? environmentNames.shift() : null).catch(() => {
+                                        core.error("Failed to publish report to DTP");
+                                    });
+                                });
+                            }
+                            core.setFailed('Job ' + jobName + ' failed.');
+                        }
+                    });
+                });
+            };
+            if (status === 'RUNNING' || status === 'WAITING') {
+                setTimeout(checkStatus, 1000);
+            }
+        }).catch((e) => {
+            core.error(e);
+            core.setFailed(e);
+        });
+    });
+}
+exports.run = run;
+run();
+
+
+/***/ }),
+
+/***/ 269:
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-const core = __importStar(__nccwpck_require__(186));
-const http_1 = __importDefault(__nccwpck_require__(605));
-const https_1 = __importDefault(__nccwpck_require__(211));
-const form_data_1 = __importDefault(__nccwpck_require__(334));
-const q_1 = __importDefault(__nccwpck_require__(172));
-const url_1 = __importDefault(__nccwpck_require__(835));
-const fs_1 = __importDefault(__nccwpck_require__(747));
+exports.ReportPublisher = void 0;
+const service = __importStar(__webpack_require__(511));
+const q_1 = __importDefault(__webpack_require__(172));
+const form_data_1 = __importDefault(__webpack_require__(334));
+const fs_1 = __importDefault(__webpack_require__(747));
+const url_1 = __importDefault(__webpack_require__(835));
+const core = __importStar(__webpack_require__(186));
+class ReportPublisher extends service.WebService {
+    constructor(endpoint, context, ctpService, metaData, authorization) {
+        super(endpoint, context, authorization);
+        this.ctpService = ctpService;
+        this.metaData = metaData;
+    }
+    uploadFile(reportId) {
+        let def = q_1.default.defer();
+        this.performGET('/api/v1.6/services').then((response) => {
+            let dataCollectorURL = url_1.default.parse(response.services.dataCollectorV2);
+            let form = new form_data_1.default();
+            let protocol = dataCollectorURL.protocol === 'https:' ? 'https:' : 'http:';
+            form.append('file', fs_1.default.createReadStream(`${reportId}/report.xml`));
+            let options = {
+                host: dataCollectorURL.hostname,
+                port: parseInt(dataCollectorURL.port),
+                path: dataCollectorURL.path,
+                method: 'POST',
+                protocol: protocol,
+                headers: form.getHeaders()
+            };
+            if (protocol === 'https:') {
+                options['rejectUnauthorized'] = false;
+                options['agent'] = false;
+                if (this.authorization && this.authorization['username']) {
+                    options.auth = this.authorization['username'] + ':' + this.authorization['password'];
+                }
+            }
+            core.debug(`POST ${options.protocol}//${options.host}${options.port ? `:${options.port}` : ""}${options.path}`);
+            form.submit(options, (err, res) => {
+                if (err) {
+                    return def.reject(new Error(err.message));
+                }
+                if (res.statusCode < 200 || res.statusCode > 299) {
+                    return def.reject(new Error(`HTTP status code ${res.statusCode}`));
+                }
+                let body = [];
+                res.on('data', (chunk) => body.push(chunk));
+                res.on('end', () => {
+                    let resString = Buffer.concat(body).toString();
+                    def.resolve(resString);
+                });
+            });
+        }).catch((error) => {
+            def.reject(error);
+        });
+        return def.promise;
+    }
+    publishReport(reportId, index, environmentName) {
+        let def = q_1.default.defer(), firstCallback = true;
+        this.ctpService.performGET(`/testreport/${reportId}/report.xml`, (res, def, responseStr) => {
+            def.resolve(responseStr);
+        }, (response) => {
+            let fileData = response;
+            if (firstCallback) {
+                fileData = this.injectMetaData(fileData, index, this.metaData.appendEnvironmentSet ? environmentName : null);
+                firstCallback = false;
+            }
+            if (!fs_1.default.existsSync(`${reportId}`)) {
+                fs_1.default.mkdirSync(`${reportId}`);
+            }
+            fs_1.default.appendFile(`${reportId}/report.xml`, fileData, (error) => {
+                if (error) {
+                    core.error(`Error writing report.xml: ${error.message}`);
+                    throw error;
+                }
+            });
+            return '';
+        }).then(() => {
+            core.debug(`    View Report:  ${this.ctpService.getBaseURL()}/testreport/${reportId}/report.html`);
+            this.uploadFile(reportId).then(response => {
+                core.debug(`   report.xml file upload successful: ${response}`);
+                core.debug(`   View Result in DTP: ${this.getBaseURL()}/dtp/explorers/test?buildId=${this.metaData.dtpBuildId}`);
+            }).catch((error) => {
+                core.error(`Error while uploading report.xml file: ${error}`);
+            });
+        });
+        return def.promise;
+    }
+    injectMetaData(source, index, environmentName) {
+        let dtpSessionTag = this.metaData.dtpSessionTag;
+        if (environmentName) {
+            if (dtpSessionTag == null) {
+                dtpSessionTag = "";
+            }
+            if (dtpSessionTag.length != 0) {
+                dtpSessionTag += '-';
+            }
+            dtpSessionTag += environmentName;
+        }
+        else if ((dtpSessionTag != null) && dtpSessionTag.length !== 0 && (index > 0)) {
+            dtpSessionTag += `-${index + 1}`; // unique session tag in DTP for each report
+        }
+        source = this.replaceAttributeValue(source, 'project', this.metaData.dtpProject);
+        source = this.replaceAttributeValue(source, 'buildId', this.metaData.dtpBuildId);
+        source = this.replaceAttributeValue(source, 'tag', dtpSessionTag);
+        return this.replaceAttributeValue(source, 'execEnv', environmentName);
+    }
+    replaceAttributeValue(source, attribute, newValue) {
+        let regEx = new RegExp(attribute + '\=\"[^"]*\"');
+        return source.replace(regEx, attribute + '="' + newValue + '"');
+    }
+}
+exports.ReportPublisher = ReportPublisher;
+
+
+/***/ }),
+
+/***/ 511:
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.WebService = void 0;
+const core = __importStar(__webpack_require__(186));
+const http_1 = __importDefault(__webpack_require__(605));
+const https_1 = __importDefault(__webpack_require__(211));
+const url_1 = __importDefault(__webpack_require__(835));
+const q_1 = __importDefault(__webpack_require__(172));
 class WebService {
     constructor(endpoint, context, authorization) {
         this.baseURL = url_1.default.parse(endpoint);
@@ -51,8 +355,17 @@ class WebService {
         this.protocol = this.baseURL.protocol === 'https:' ? https_1.default : http_1.default;
         this.protocolLabel = this.baseURL.protocol || 'http:';
     }
+    performTest(path) {
+        return new Promise((resolve, reject) => {
+            resolve('value');
+        });
+    }
     performGET(path, handler, dataHandler) {
         let def = q_1.default.defer();
+        let promise = new Promise((resolve, reject) => {
+            def.resolve = resolve;
+            def.reject = reject;
+        });
         let options = {
             host: this.baseURL.hostname,
             path: this.baseURL.path + path,
@@ -104,7 +417,7 @@ class WebService {
         }).on('error', (e) => {
             def.reject(e);
         });
-        return def.promise;
+        return promise;
     }
     getBaseURL() {
         return this.protocolLabel + '//' + this.baseURL.hostname +
@@ -118,6 +431,10 @@ class WebService {
     }
     performRequest(path, data, method) {
         let def = q_1.default.defer();
+        let promise = new Promise((resolve, reject) => {
+            def.resolve = resolve;
+            def.reject = reject;
+        });
         let options = {
             host: this.baseURL.hostname,
             path: this.baseURL.path + path,
@@ -155,216 +472,16 @@ class WebService {
         });
         req.write(JSON.stringify(data));
         req.end();
-        return def.promise;
+        return promise;
     }
 }
-const ctpEndpoint = core.getInput('ctpUrl', { required: true });
-const ctpUsername = core.getInput('ctpUsername', { required: true });
-const ctpPassword = core.getInput('ctpPassword', { required: true });
-const ctpService = new WebService(ctpEndpoint, 'em', { username: ctpUsername, password: ctpPassword });
-let dtpService = null;
-const publish = core.getInput('publishReport') === 'true';
-const dtpEndpoint = core.getInput('dtpUrl', { required: false });
-var dtpAuthorization = null;
-if (dtpEndpoint) {
-    dtpAuthorization = { username: core.getInput('dtpUsername'), password: core.getInput('dtpPassword') };
-}
-const dtpProject = core.getInput('dtpProject');
-const dtpBuildId = core.getInput('buildId');
-let dtpSessionTag = core.getInput('sessionTag');
-const appendEnvironment = core.getInput('appendEnvironment') === 'true';
-if (dtpEndpoint && publish) {
-    dtpService = new WebService(dtpEndpoint, 'grs', dtpAuthorization);
-}
-const abortOnTimout = core.getInput('abortOnTimeout') === 'true';
-const timeout = core.getInput('timeoutInMinutes');
-function uploadFile(reportId) {
-    let def = q_1.default.defer();
-    dtpService.performGET('/api/v1.6/services').then((response) => {
-        let dataCollectorURL = url_1.default.parse(response.services.dataCollectorV2);
-        let form = new form_data_1.default();
-        let protocol = dataCollectorURL.protocol === 'https:' ? 'https:' : 'http:';
-        form.append('file', fs_1.default.createReadStream(`${reportId}/report.xml`));
-        let options = {
-            host: dataCollectorURL.hostname,
-            port: parseInt(dataCollectorURL.port),
-            path: dataCollectorURL.path,
-            method: 'POST',
-            protocol: protocol,
-            headers: form.getHeaders()
-        };
-        if (protocol === 'https:') {
-            options['rejectUnauthorized'] = false;
-            options['agent'] = false;
-            if (dtpAuthorization && dtpAuthorization['username']) {
-                options.auth = dtpAuthorization['username'] + ':' + dtpAuthorization['password'];
-            }
-        }
-        core.debug(`POST ${options.protocol}//${options.host}${options.port ? `:${options.port}` : ""}${options.path}`);
-        form.submit(options, (err, res) => {
-            if (err) {
-                return def.reject(new Error(err.message));
-            }
-            if (res.statusCode < 200 || res.statusCode > 299) {
-                return def.reject(new Error(`HTTP status code ${res.statusCode}`));
-            }
-            let body = [];
-            res.on('data', (chunk) => body.push(chunk));
-            res.on('end', () => {
-                let resString = Buffer.concat(body).toString();
-                def.resolve(resString);
-            });
-        });
-    }).catch((error) => {
-        def.reject(error);
-    });
-    return def.promise;
-}
-function replaceAttributeValue(source, attribute, newValue) {
-    let regEx = new RegExp(attribute + '\=\"[^"]*\"');
-    return source.replace(regEx, attribute + '="' + newValue + '"');
-}
-function injectMetaData(source, index, environmentName) {
-    if (environmentName) {
-        if (dtpSessionTag == null) {
-            dtpSessionTag = "";
-        }
-        if (dtpSessionTag.length != 0) {
-            dtpSessionTag += '-';
-        }
-        dtpSessionTag += environmentName;
-    }
-    else if ((dtpSessionTag != null) && dtpSessionTag.length !== 0 && (index > 0)) {
-        dtpSessionTag += `-${index + 1}`; // unique session tag in DTP for each report
-    }
-    source = replaceAttributeValue(source, 'project', dtpProject);
-    source = replaceAttributeValue(source, 'buildId', dtpBuildId);
-    source = replaceAttributeValue(source, 'tag', dtpSessionTag);
-    return replaceAttributeValue(source, 'execEnv', environmentName);
-}
-function extractEnvironmentNames(job) {
-    let separate = job.fork, lastTestId = null, environmentNames = [];
-    job.testScenarioInstances.forEach((instance => {
-        let testScenarioId = instance.testScenarioId, variableset = instance.variableSet;
-        if (separate || (lastTestId == null || lastTestId === testScenarioId)) {
-            environmentNames.push(variableset);
-        }
-        lastTestId = testScenarioId;
-    }));
-    return environmentNames;
-}
-function publishReport(reportId, index, environmentName) {
-    let def = q_1.default.defer(), firstCallback = true;
-    ctpService.performGET(`/testreport/${reportId}/report.xml`, (res, def, responseStr) => {
-        def.resolve(responseStr);
-    }, (response) => {
-        let fileData = response;
-        if (firstCallback) {
-            fileData = injectMetaData(fileData, index, appendEnvironment ? environmentName : null);
-            firstCallback = false;
-        }
-        if (!fs_1.default.existsSync(`${reportId}`)) {
-            fs_1.default.mkdirSync(`${reportId}`);
-        }
-        fs_1.default.appendFile(`${reportId}/report.xml`, fileData, (error) => {
-            if (error) {
-                core.error(`Error writing report.xml: ${error.message}`);
-                throw error;
-            }
-        });
-        return '';
-    }).then(() => {
-        core.debug(`    View Report:  ${ctpService.getBaseURL()}/testreport/${reportId}/report.html`);
-        uploadFile(reportId).then(response => {
-            core.debug(`   report.xml file upload successful: ${response}`);
-            core.debug(`   View Result in DTP: ${dtpService.getBaseURL()}/dtp/explorers/test?buildId=${dtpBuildId}`);
-        }).catch((error) => {
-            core.error(`Error while uploading report.xml file: ${error}`);
-        });
-    });
-    return def.promise;
-}
-const jobName = core.getInput('ctpJob', { required: true });
-let job;
-ctpService.performGET('/api/v2/jobs', (res, def, responseStr) => {
-    core.debug(`    response ${res.statusCode}: ${responseStr}`);
-    let allJobs = JSON.parse(responseStr);
-    if (typeof allJobs.jobs === 'undefined') {
-        def.reject('jobs' + ' does not exist in response object from /api/v2/jobs');
-        return;
-    }
-    let match = allJobs.jobs.find(job => job.name === jobName);
-    if (match) {
-        def.resolve(match);
-        return;
-    }
-    def.reject(`Could not find name ${jobName} in jobs from /api/v2/jobs`);
-}).then((response) => {
-    core.debug(`Found job ${response.name} with id ${response.id}`);
-    job = response;
-    return ctpService.performPOST(`/api/v2/jobs/${job.id}/histories?async=true`, {});
-}).then((res) => {
-    let historyId = res.id;
-    let status = res.status;
-    let startTime = new Date().getTime();
-    let checkStatus = function () {
-        ctpService.performGET(`/api/v2/jobs/${job.id}/histories/${historyId}`).then((res) => {
-            status = res.status;
-            if (abortOnTimout) {
-                let timespent = (new Date().getTime() - startTime) / 60000, timeoutNum = parseInt(timeout);
-                if (timespent > timeoutNum) {
-                    ctpService.performPUT(`/api/v2/jobs/${job.id}/histories/${historyId}`, { status: 'CANCELED' });
-                    core.error(`Test execution job timed out after ${timeoutNum} minute"${timeoutNum > 1 ? 's' : ""}.`);
-                    core.setFailed('Job ' + jobName + ' timed out.');
-                    return;
-                }
-            }
-            if (status === 'RUNNING' || status === 'WAITING') {
-                setTimeout(checkStatus, 1000);
-            }
-            else if (status === 'PASSED') {
-                core.debug('Job ' + jobName + ' passed.');
-                if (dtpService) {
-                    let environmentNames = extractEnvironmentNames(job);
-                    res.reportIds.forEach((reportId, index) => {
-                        core.debug(`    report location: /testreport/${reportId}/report.xml`);
-                        publishReport(reportId, index, environmentNames.length > 0 ? environmentNames.shift() : null).catch(() => {
-                            core.error("Failed to publish report to DTP");
-                        });
-                    });
-                }
-            }
-            else if (status === 'CANCELED') {
-                core.warning('Job ' + jobName + ' canceled.');
-            }
-            else {
-                core.error('Job ' + jobName + ' failed.');
-                if (dtpService) {
-                    res.reportIds.forEach((reportId, index) => {
-                        core.debug(`    report location: /testreport/${reportId}/report.xml`);
-                        let environmentNames = extractEnvironmentNames(job);
-                        publishReport(reportId, index, environmentNames.length > 0 ? environmentNames.shift() : null).catch(() => {
-                            core.error("Failed to publish report to DTP");
-                        });
-                    });
-                }
-                core.setFailed('Job ' + jobName + ' failed.');
-            }
-        });
-    };
-    if (status === 'RUNNING' || status === 'WAITING') {
-        setTimeout(checkStatus, 1000);
-    }
-}).catch((e) => {
-    core.error(e);
-    core.setFailed(e);
-});
+exports.WebService = WebService;
 
 
 /***/ }),
 
 /***/ 351:
-/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
 
 "use strict";
 
@@ -376,8 +493,8 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-const os = __importStar(__nccwpck_require__(87));
-const utils_1 = __nccwpck_require__(278);
+const os = __importStar(__webpack_require__(87));
+const utils_1 = __webpack_require__(278);
 /**
  * Commands
  *
@@ -450,7 +567,7 @@ function escapeProperty(s) {
 /***/ }),
 
 /***/ 186:
-/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
 
 "use strict";
 
@@ -471,11 +588,11 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-const command_1 = __nccwpck_require__(351);
-const file_command_1 = __nccwpck_require__(717);
-const utils_1 = __nccwpck_require__(278);
-const os = __importStar(__nccwpck_require__(87));
-const path = __importStar(__nccwpck_require__(622));
+const command_1 = __webpack_require__(351);
+const file_command_1 = __webpack_require__(717);
+const utils_1 = __webpack_require__(278);
+const os = __importStar(__webpack_require__(87));
+const path = __importStar(__webpack_require__(622));
 /**
  * The code to exit an action
  */
@@ -695,7 +812,7 @@ exports.getState = getState;
 /***/ }),
 
 /***/ 717:
-/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
 
 "use strict";
 
@@ -710,9 +827,9 @@ var __importStar = (this && this.__importStar) || function (mod) {
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 // We use any as a valid input type
 /* eslint-disable @typescript-eslint/no-explicit-any */
-const fs = __importStar(__nccwpck_require__(747));
-const os = __importStar(__nccwpck_require__(87));
-const utils_1 = __nccwpck_require__(278);
+const fs = __importStar(__webpack_require__(747));
+const os = __importStar(__webpack_require__(87));
+const utils_1 = __webpack_require__(278);
 function issueCommand(command, message) {
     const filePath = process.env[`GITHUB_${command}`];
     if (!filePath) {
@@ -757,13 +874,13 @@ exports.toCommandValue = toCommandValue;
 /***/ }),
 
 /***/ 812:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
 
 module.exports =
 {
-  parallel      : __nccwpck_require__(210),
-  serial        : __nccwpck_require__(445),
-  serialOrdered : __nccwpck_require__(578)
+  parallel      : __webpack_require__(210),
+  serial        : __webpack_require__(445),
+  serialOrdered : __webpack_require__(578)
 };
 
 
@@ -806,9 +923,9 @@ function clean(key)
 /***/ }),
 
 /***/ 794:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
 
-var defer = __nccwpck_require__(295);
+var defer = __webpack_require__(295);
 
 // API
 module.exports = async;
@@ -880,10 +997,10 @@ function defer(fn)
 /***/ }),
 
 /***/ 23:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
 
-var async = __nccwpck_require__(794)
-  , abort = __nccwpck_require__(700)
+var async = __webpack_require__(794)
+  , abort = __webpack_require__(700)
   ;
 
 // API
@@ -1006,10 +1123,10 @@ function state(list, sortMethod)
 /***/ }),
 
 /***/ 942:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
 
-var abort = __nccwpck_require__(700)
-  , async = __nccwpck_require__(794)
+var abort = __webpack_require__(700)
+  , async = __webpack_require__(794)
   ;
 
 // API
@@ -1042,11 +1159,11 @@ function terminator(callback)
 /***/ }),
 
 /***/ 210:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
 
-var iterate    = __nccwpck_require__(23)
-  , initState  = __nccwpck_require__(474)
-  , terminator = __nccwpck_require__(942)
+var iterate    = __webpack_require__(23)
+  , initState  = __webpack_require__(474)
+  , terminator = __webpack_require__(942)
   ;
 
 // Public API
@@ -1092,9 +1209,9 @@ function parallel(list, iterator, callback)
 /***/ }),
 
 /***/ 445:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
 
-var serialOrdered = __nccwpck_require__(578);
+var serialOrdered = __webpack_require__(578);
 
 // Public API
 module.exports = serial;
@@ -1116,11 +1233,11 @@ function serial(list, iterator, callback)
 /***/ }),
 
 /***/ 578:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
 
-var iterate    = __nccwpck_require__(23)
-  , initState  = __nccwpck_require__(474)
-  , terminator = __nccwpck_require__(942)
+var iterate    = __webpack_require__(23)
+  , initState  = __webpack_require__(474)
+  , terminator = __webpack_require__(942)
   ;
 
 // Public API
@@ -1198,11 +1315,11 @@ function descending(a, b)
 /***/ }),
 
 /***/ 443:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
 
-var util = __nccwpck_require__(669);
-var Stream = __nccwpck_require__(413).Stream;
-var DelayedStream = __nccwpck_require__(611);
+var util = __webpack_require__(669);
+var Stream = __webpack_require__(413).Stream;
+var DelayedStream = __webpack_require__(611);
 
 module.exports = CombinedStream;
 function CombinedStream() {
@@ -1413,10 +1530,10 @@ CombinedStream.prototype._emitError = function(err) {
 /***/ }),
 
 /***/ 611:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
 
-var Stream = __nccwpck_require__(413).Stream;
-var util = __nccwpck_require__(669);
+var Stream = __webpack_require__(413).Stream;
+var util = __webpack_require__(669);
 
 module.exports = DelayedStream;
 function DelayedStream() {
@@ -1527,18 +1644,18 @@ DelayedStream.prototype._checkIfMaxDataSizeExceeded = function() {
 /***/ }),
 
 /***/ 334:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
 
-var CombinedStream = __nccwpck_require__(443);
-var util = __nccwpck_require__(669);
-var path = __nccwpck_require__(622);
-var http = __nccwpck_require__(605);
-var https = __nccwpck_require__(211);
-var parseUrl = __nccwpck_require__(835).parse;
-var fs = __nccwpck_require__(747);
-var mime = __nccwpck_require__(583);
-var asynckit = __nccwpck_require__(812);
-var populate = __nccwpck_require__(142);
+var CombinedStream = __webpack_require__(443);
+var util = __webpack_require__(669);
+var path = __webpack_require__(622);
+var http = __webpack_require__(605);
+var https = __webpack_require__(211);
+var parseUrl = __webpack_require__(835).parse;
+var fs = __webpack_require__(747);
+var mime = __webpack_require__(583);
+var asynckit = __webpack_require__(812);
+var populate = __webpack_require__(142);
 
 // Public API
 module.exports = FormData;
@@ -2045,7 +2162,7 @@ module.exports = function(dst, src) {
 /***/ }),
 
 /***/ 426:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
 
 /*!
  * mime-db
@@ -2057,13 +2174,13 @@ module.exports = function(dst, src) {
  * Module exports.
  */
 
-module.exports = __nccwpck_require__(313)
+module.exports = __webpack_require__(313)
 
 
 /***/ }),
 
 /***/ 583:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
 
 "use strict";
 /*!
@@ -2080,8 +2197,8 @@ module.exports = __nccwpck_require__(313)
  * @private
  */
 
-var db = __nccwpck_require__(426)
-var extname = __nccwpck_require__(622).extname
+var db = __webpack_require__(426)
+var extname = __webpack_require__(622).extname
 
 /**
  * Module variables.
@@ -4388,7 +4505,7 @@ module.exports = require("util");;
 /******/ 	var __webpack_module_cache__ = {};
 /******/ 	
 /******/ 	// The require function
-/******/ 	function __nccwpck_require__(moduleId) {
+/******/ 	function __webpack_require__(moduleId) {
 /******/ 		// Check if module is in cache
 /******/ 		if(__webpack_module_cache__[moduleId]) {
 /******/ 			return __webpack_module_cache__[moduleId].exports;
@@ -4403,7 +4520,7 @@ module.exports = require("util");;
 /******/ 		// Execute the module function
 /******/ 		var threw = true;
 /******/ 		try {
-/******/ 			__webpack_modules__[moduleId].call(module.exports, module, module.exports, __nccwpck_require__);
+/******/ 			__webpack_modules__[moduleId].call(module.exports, module, module.exports, __webpack_require__);
 /******/ 			threw = false;
 /******/ 		} finally {
 /******/ 			if(threw) delete __webpack_module_cache__[moduleId];
@@ -4416,11 +4533,11 @@ module.exports = require("util");;
 /************************************************************************/
 /******/ 	/* webpack/runtime/compat */
 /******/ 	
-/******/ 	__nccwpck_require__.ab = __dirname + "/";/************************************************************************/
+/******/ 	__webpack_require__.ab = __dirname + "/";/************************************************************************/
 /******/ 	// module exports must be returned from runtime so entry inlining is disabled
 /******/ 	// startup
 /******/ 	// Load entry module and return exports
-/******/ 	return __nccwpck_require__(109);
+/******/ 	return __webpack_require__(109);
 /******/ })()
 ;
 //# sourceMappingURL=index.js.map
