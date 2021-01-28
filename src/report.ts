@@ -9,7 +9,7 @@ export interface ReportMetaData {
     dtpBuildId: string,
     dtpSessionTag: string,
     dtpProject: string,
-    appendEnvironmentSet : boolean
+    appendEnvironment : boolean
 }
 
 export class ReportPublisher extends service.WebService {
@@ -25,6 +25,7 @@ export class ReportPublisher extends service.WebService {
     {
         super(endpoint, context, authorization)
         this.ctpService = ctpService;
+        this.metaData = metaData;
     }
     
 
@@ -80,7 +81,7 @@ export class ReportPublisher extends service.WebService {
             (response) => {
                 let fileData = response;
                 if (firstCallback) {
-                    fileData = this.injectMetaData(fileData, index, this.metaData.appendEnvironmentSet ? environmentName : null);
+                    fileData = this.injectMetaData(fileData, index, this.metaData.appendEnvironment ? environmentName : null);
                     firstCallback = false;
                 }
                 if (!fs.existsSync(`${reportId}`)){

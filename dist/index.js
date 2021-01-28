@@ -204,6 +204,7 @@ class ReportPublisher extends service.WebService {
     constructor(endpoint, context, ctpService, metaData, authorization) {
         super(endpoint, context, authorization);
         this.ctpService = ctpService;
+        this.metaData = metaData;
     }
     uploadFile(reportId) {
         let def = q_1.default.defer();

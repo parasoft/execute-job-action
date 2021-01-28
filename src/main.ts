@@ -34,13 +34,13 @@ export async function run() {
     const dtpProject = core.getInput('dtpProject');
     const dtpBuildId = core.getInput('buildId');
     let dtpSessionTag = core.getInput('sessionTag');
-    const appendEnvironmentSet = core.getInput('appendEnvironmentSet') === 'true';
+    const appendEnvironment = core.getInput('appendEnvironment') === 'true';
     if (dtpEndpoint && publish) {
         let metaData: report.ReportMetaData = {
             dtpProject: dtpProject,
             dtpBuildId: dtpBuildId,
             dtpSessionTag: dtpSessionTag,
-            appendEnvironmentSet : appendEnvironmentSet
+            appendEnvironment : appendEnvironment
         }
         dtpService = new report.ReportPublisher(dtpEndpoint, 'grs', ctpService, metaData, dtpAuthorization);
     }
