@@ -68,13 +68,13 @@ function run() {
         const dtpProject = core.getInput('dtpProject');
         const dtpBuildId = core.getInput('buildId');
         let dtpSessionTag = core.getInput('sessionTag');
-        const appendEnvironmentSet = core.getInput('appendEnvironmentSet') === 'true';
+        const appendEnvironment = core.getInput('appendEnvironment') === 'true';
         if (dtpEndpoint && publish) {
             let metaData = {
                 dtpProject: dtpProject,
                 dtpBuildId: dtpBuildId,
                 dtpSessionTag: dtpSessionTag,
-                appendEnvironmentSet: appendEnvironmentSet
+                appendEnvironment: appendEnvironment
             };
             dtpService = new report.ReportPublisher(dtpEndpoint, 'grs', ctpService, metaData, dtpAuthorization);
         }
@@ -83,7 +83,7 @@ function run() {
         const jobName = core.getInput('ctpJob', { required: true });
         let job;
         ctpService.performGET('/api/v2/jobs', (res, def, responseStr) => {
-            core.debug(`    response ${res.statusCode}: ${responseStr}`);
+            core.info(`    response ${res.statusCode}: ${responseStr}`);
             let allJobs = JSON.parse(responseStr);
             if (typeof allJobs.jobs === 'undefined') {
                 def.reject('jobs' + ' does not exist in response object from /api/v2/jobs');
@@ -96,7 +96,7 @@ function run() {
             }
             def.reject(`Could not find name ${jobName} in jobs from /api/v2/jobs`);
         }).then((response) => {
-            core.debug(`Found job ${response.name} with id ${response.id}`);
+            core.info(`Found job ${response.name} with id ${response.id}`);
             job = response;
             return ctpService.performPOST(`/api/v2/jobs/${job.id}/histories?async=true`, {});
         }).then((res) => {
@@ -120,11 +120,11 @@ function run() {
                             setTimeout(checkStatus, 1000);
                         }
                         else if (status === 'PASSED') {
-                            core.debug('Job ' + jobName + ' passed.');
+                            core.info('Job ' + jobName + ' passed.');
                             if (dtpService) {
                                 let environmentNames = extractEnvironmentNames(job);
                                 res.reportIds.forEach((reportId, index) => {
-                                    core.debug(`    report location: /testreport/${reportId}/report.xml`);
+                                    core.info(`    report location: /testreport/${reportId}/report.xml`);
                                     dtpService.publishReport(reportId, index, environmentNames.length > 0 ? environmentNames.shift() : null).catch(() => {
                                         core.error("Failed to publish report to DTP");
                                     });
@@ -138,7 +138,7 @@ function run() {
                             core.error('Job ' + jobName + ' failed.');
                             if (dtpService) {
                                 res.reportIds.forEach((reportId, index) => {
-                                    core.debug(`    report location: /testreport/${reportId}/report.xml`);
+                                    core.info(`    report location: /testreport/${reportId}/report.xml`);
                                     let environmentNames = extractEnvironmentNames(job);
                                     dtpService.publishReport(reportId, index, environmentNames.length > 0 ? environmentNames.shift() : null).catch(() => {
                                         core.error("Failed to publish report to DTP");
@@ -228,7 +228,7 @@ class ReportPublisher extends service.WebService {
                     options.auth = this.authorization['username'] + ':' + this.authorization['password'];
                 }
             }
-            core.debug(`POST ${options.protocol}//${options.host}${options.port ? `:${options.port}` : ""}${options.path}`);
+            core.info(`POST ${options.protocol}//${options.host}${options.port ? `:${options.port}` : ""}${options.path}`);
             form.submit(options, (err, res) => {
                 if (err) {
                     return def.reject(new Error(err.message));
@@ -255,7 +255,7 @@ class ReportPublisher extends service.WebService {
         }, (response) => {
             let fileData = response;
             if (firstCallback) {
-                fileData = this.injectMetaData(fileData, index, this.metaData.appendEnvironmentSet ? environmentName : null);
+                fileData = this.injectMetaData(fileData, index, this.metaData.appendEnvironment ? environmentName : null);
                 firstCallback = false;
             }
             if (!fs_1.default.existsSync(`${reportId}`)) {
@@ -269,10 +269,10 @@ class ReportPublisher extends service.WebService {
             });
             return '';
         }).then(() => {
-            core.debug(`    View Report:  ${this.ctpService.getBaseURL()}/testreport/${reportId}/report.html`);
+            core.info(`    View Report:  ${this.ctpService.getBaseURL()}/testreport/${reportId}/report.html`);
             this.uploadFile(reportId).then(response => {
-                core.debug(`   report.xml file upload successful: ${response}`);
-                core.debug(`   View Result in DTP: ${this.getBaseURL()}/dtp/explorers/test?buildId=${this.metaData.dtpBuildId}`);
+                core.info(`   report.xml file upload successful: ${response}`);
+                core.info(`   View Result in DTP: ${this.getBaseURL()}/dtp/explorers/test?buildId=${this.metaData.dtpBuildId}`);
             }).catch((error) => {
                 core.error(`Error while uploading report.xml file: ${error}`);
             });
@@ -384,7 +384,7 @@ class WebService {
         if (this.authorization && this.authorization['username']) {
             options.auth = this.authorization['username'] + ':' + this.authorization['password'];
         }
-        core.debug(`GET ${this.protocolLabel}//${options.host}${options.port ? `:${options.port}` : ""}${options.path}`);
+        core.info(`GET ${this.protocolLabel}//${options.host}${options.port ? `:${options.port}` : ""}${options.path}`);
         let responseString = "";
         this.protocol.get(options, (res) => {
             res.setEncoding('utf8');
@@ -402,14 +402,14 @@ class WebService {
                     if (redirectPath.startsWith(this.baseURL.path)) {
                         redirectPath = redirectPath.substring(3);
                     }
-                    core.debug('    redirect to "' + redirectPath + '"');
+                    core.info('    redirect to "' + redirectPath + '"');
                     this.performGET(redirectPath, handler, dataHandler).then(response => def.resolve(response));
                 }
                 else if (handler) {
                     handler(res, def, responseString);
                 }
                 else {
-                    core.debug(`   response ${res.statusCode}: ${responseString}`);
+                    core.info(`   response ${res.statusCode}: ${responseString}`);
                     let responseObject = JSON.parse(responseString);
                     def.resolve(responseObject);
                 }
@@ -455,7 +455,7 @@ class WebService {
         if (this.authorization && this.authorization['username']) {
             options.auth = this.authorization['username'] + ':' + this.authorization['password'];
         }
-        core.debug(`${method} ${this.protocolLabel}//${options.host}${options.port ? `:${options.port}` : ""}${options.path}`);
+        core.info(`${method} ${this.protocolLabel}//${options.host}${options.port ? `:${options.port}` : ""}${options.path}`);
         let responseString = "";
         let req = this.protocol.request(options, (res) => {
             res.setEncoding('utf8');
@@ -463,7 +463,7 @@ class WebService {
                 responseString += chunk;
             });
             res.on('end', () => {
-                core.debug(`    response ${res.statusCode}: ${responseString}`);
+                core.info(`    response ${res.statusCode}: ${responseString}`);
                 let responseObject = JSON.parse(responseString);
                 def.resolve(responseObject);
             });

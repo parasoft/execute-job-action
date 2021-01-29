@@ -51,7 +51,7 @@ export class ReportPublisher extends service.WebService {
                     options.auth = this.authorization['username'] + ':' + this.authorization['password'];
                 }
             }
-            core.debug(`POST ${options.protocol}//${options.host}${options.port ? `:${options.port}` : ""}${options.path}`);
+            core.info(`POST ${options.protocol}//${options.host}${options.port ? `:${options.port}` : ""}${options.path}`);
             form.submit(options, (err, res) => {
                 if (err) {
                     return def.reject(new Error(err.message));
@@ -95,10 +95,10 @@ export class ReportPublisher extends service.WebService {
                 });
                 return '';
             }).then(() => {
-                core.debug(`    View Report:  ${this.ctpService.getBaseURL()}/testreport/${reportId}/report.html`);
+                core.info(`    View Report:  ${this.ctpService.getBaseURL()}/testreport/${reportId}/report.html`);
                 this.uploadFile(reportId).then(response => {
-                    core.debug(`   report.xml file upload successful: ${response}`);
-                    core.debug(`   View Result in DTP: ${this.getBaseURL()}/dtp/explorers/test?buildId=${this.metaData.dtpBuildId}`);
+                    core.info(`   report.xml file upload successful: ${response}`);
+                    core.info(`   View Result in DTP: ${this.getBaseURL()}/dtp/explorers/test?buildId=${this.metaData.dtpBuildId}`);
                 }).catch((error) => {
                     core.error(`Error while uploading report.xml file: ${error}`);
                 });

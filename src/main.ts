@@ -49,7 +49,7 @@ export async function run() {
     const jobName = core.getInput('ctpJob', { required: true });
     let job: EMJob;
     ctpService.performGET<EMJob>('/api/v2/jobs', (res, def, responseStr) => {
-        core.debug(`    response ${res.statusCode}: ${responseStr}`);
+        core.info(`    response ${res.statusCode}: ${responseStr}`);
         let allJobs: { jobs: EMJob[]} = JSON.parse(responseStr);
         if (typeof allJobs.jobs === 'undefined') {
             def.reject('jobs' + ' does not exist in response object from /api/v2/jobs');
@@ -62,7 +62,7 @@ export async function run() {
         }
         def.reject(`Could not find name ${jobName } in jobs from /api/v2/jobs`);
     }).then((response: EMJob) => {
-        core.debug(`Found job ${response.name} with id ${response.id}`);
+        core.info(`Found job ${response.name} with id ${response.id}`);
         job = response;
         return ctpService.performPOST<EMJobHistory>(`/api/v2/jobs/${job.id}/histories?async=true`, {});
     }).then((res: EMJobHistory) => {
@@ -85,11 +85,11 @@ export async function run() {
                 if (status === 'RUNNING' || status === 'WAITING') {
                     setTimeout(checkStatus, 1000);
                 } else if (status === 'PASSED') {
-                    core.debug('Job ' + jobName + ' passed.');
+                    core.info('Job ' + jobName + ' passed.');
                     if (dtpService) {
                         let environmentNames = extractEnvironmentNames(job);
                         res.reportIds.forEach((reportId, index) => {
-                            core.debug(`    report location: /testreport/${reportId}/report.xml`);
+                            core.info(`    report location: /testreport/${reportId}/report.xml`);
                             dtpService.publishReport(reportId, index, environmentNames.length > 0 ? environmentNames.shift() : null).catch(() => {
                                 core.error("Failed to publish report to DTP");
                             });
@@ -101,7 +101,7 @@ export async function run() {
                     core.error('Job ' + jobName + ' failed.');
                     if (dtpService) {
                         res.reportIds.forEach((reportId, index) => {
-                            core.debug(`    report location: /testreport/${reportId}/report.xml`);
+                            core.info(`    report location: /testreport/${reportId}/report.xml`);
                             let environmentNames = extractEnvironmentNames(job);
                             dtpService.publishReport(reportId, index, environmentNames.length > 0 ? environmentNames.shift() : null).catch(() => {
                                 core.error("Failed to publish report to DTP");
