@@ -1,6 +1,6 @@
 {
   "name": "execute-job-action",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "description": "Run a test execution job with Parasoft Continuous Testing Platform (CTP)",
   "main": "lib/main.js",
