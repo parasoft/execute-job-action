@@ -84,8 +84,17 @@ export class ReportPublisher extends service.WebService {
                     fileData = this.injectMetaData(fileData, index, this.metaData.appendEnvironment ? environmentName : null);
                     firstCallback = false;
                 }
-                if (!fs.existsSync(`target/parasoft/soatest/${reportId}`)){
-                    fs.mkdirSync(`target/parasoft/soatest/${reportId}`, {recursive: true});
+                if (!fs.existsSync('target')) {
+                    fs.mkdirSync('target');
+                }
+                if (!fs.existsSync('target/parasoft')) {
+                    fs.mkdirSync('target/parasoft');
+                }
+                if (!fs.existsSync('target/parasoft/soatest')) {
+                    fs.mkdirSync('target/parasoft/soatest');
+                }
+                if (!fs.existsSync(`target/parasoft/soatest/${reportId}`)) {
+                    fs.mkdirSync(`target/parasoft/soatest/${reportId}`);
                 }
                 try {
                     fs.appendFileSync(`target/parasoft/soatest/${reportId}/report.xml`, fileData);
@@ -98,8 +107,10 @@ export class ReportPublisher extends service.WebService {
                 core.info(`    View report:  ${this.ctpService.getBaseURL()}/testreport/${reportId}/report.html`);
                 this.uploadFile(reportId).then(response => {
                     core.info(`   report.xml file upload successful: ${response}`);
+		    def.resolve();
                 }).catch((error) => {
                     core.error(`Error while uploading report.xml file: ${error}`);
+		    def.reject(error);
                 });
             });
         return def.promise;

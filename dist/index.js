@@ -126,7 +126,10 @@ function run() {
                                 res.reportIds.forEach((reportId, index) => {
                                     dtpService.publishReport(reportId, index, environmentNames.length > 0 ? environmentNames.shift() : null).catch((err) => {
                                         core.error("Failed to publish report to DTP");
-                                        throw err;
+                                    }).then(() => {
+                                        if (index === 0) {
+                                            console.log('   View results in DTP: ' + dtpService.getBaseURL() + '/dtp/explorers/test?buildId=' + dtpBuildId);
+                                        }
                                     });
                                 });
                                 core.info(`   View results in DTP: ${this.getBaseURL()}/dtp/explorers/test?buildId=${this.metaData.dtpBuildId}`);
@@ -143,7 +146,10 @@ function run() {
                                     let environmentNames = extractEnvironmentNames(job);
                                     dtpService.publishReport(reportId, index, environmentNames.length > 0 ? environmentNames.shift() : null).catch((err) => {
                                         core.error("Failed to publish report to DTP");
-                                        throw err;
+                                    }).then(() => {
+                                        if (index === 0) {
+                                            console.log('   View results in DTP: ' + dtpService.getBaseURL() + '/dtp/explorers/test?buildId=' + dtpBuildId);
+                                        }
                                     });
                                 });
                                 core.info(`   View results in DTP: ${this.getBaseURL()}/dtp/explorers/test?buildId=${this.metaData.dtpBuildId}`);
@@ -261,8 +267,17 @@ class ReportPublisher extends service.WebService {
                 fileData = this.injectMetaData(fileData, index, this.metaData.appendEnvironment ? environmentName : null);
                 firstCallback = false;
             }
+            if (!fs_1.default.existsSync('target')) {
+                fs_1.default.mkdirSync('target');
+            }
+            if (!fs_1.default.existsSync('target/parasoft')) {
+                fs_1.default.mkdirSync('target/parasoft');
+            }
+            if (!fs_1.default.existsSync('target/parasoft/soatest')) {
+                fs_1.default.mkdirSync('target/parasoft/soatest');
+            }
             if (!fs_1.default.existsSync(`target/parasoft/soatest/${reportId}`)) {
-                fs_1.default.mkdirSync(`target/parasoft/soatest/${reportId}`, { recursive: true });
+                fs_1.default.mkdirSync(`target/parasoft/soatest/${reportId}`);
             }
             try {
                 fs_1.default.appendFileSync(`target/parasoft/soatest/${reportId}/report.xml`, fileData);
@@ -276,8 +291,10 @@ class ReportPublisher extends service.WebService {
             core.info(`    View report:  ${this.ctpService.getBaseURL()}/testreport/${reportId}/report.html`);
             this.uploadFile(reportId).then(response => {
                 core.info(`   report.xml file upload successful: ${response}`);
+                def.resolve();
             }).catch((error) => {
                 core.error(`Error while uploading report.xml file: ${error}`);
+                def.reject(error);
             });
         });
         return def.promise;

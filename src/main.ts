@@ -91,7 +91,10 @@ export async function run() {
                         res.reportIds.forEach((reportId, index) => {
                             dtpService.publishReport(reportId, index, environmentNames.length > 0 ? environmentNames.shift() : null).catch((err) => {
                                 core.error("Failed to publish report to DTP");
-				throw err;
+                            }).then(() => {
+                                if (index === 0) {
+                                    console.log('   View results in DTP: ' + dtpService.getBaseURL() + '/dtp/explorers/test?buildId=' + dtpBuildId);
+                                }
                             });
                         });
                         core.info(`   View results in DTP: ${this.getBaseURL()}/dtp/explorers/test?buildId=${this.metaData.dtpBuildId}`);
@@ -106,7 +109,10 @@ export async function run() {
                             let environmentNames = extractEnvironmentNames(job);
                             dtpService.publishReport(reportId, index, environmentNames.length > 0 ? environmentNames.shift() : null).catch((err) => {
                                 core.error("Failed to publish report to DTP");
-				throw err;
+                            }).then(() => {
+                                if (index === 0) {
+                                    console.log('   View results in DTP: ' + dtpService.getBaseURL() + '/dtp/explorers/test?buildId=' + dtpBuildId);
+                                }
                             });
                         });
                         core.info(`   View results in DTP: ${this.getBaseURL()}/dtp/explorers/test?buildId=${this.metaData.dtpBuildId}`);
