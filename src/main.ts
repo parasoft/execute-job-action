@@ -89,11 +89,12 @@ export async function run() {
                     if (dtpService) {
                         let environmentNames = extractEnvironmentNames(job);
                         res.reportIds.forEach((reportId, index) => {
-                            core.info(`    report location: /testreport/${reportId}/report.xml`);
-                            dtpService.publishReport(reportId, index, environmentNames.length > 0 ? environmentNames.shift() : null).catch(() => {
+                            dtpService.publishReport(reportId, index, environmentNames.length > 0 ? environmentNames.shift() : null).catch((err) => {
                                 core.error("Failed to publish report to DTP");
+				throw err;
                             });
                         });
+                        core.info(`   View results in DTP: ${this.getBaseURL()}/dtp/explorers/test?buildId=${this.metaData.dtpBuildId}`);
                     }
                 } else if (status === 'CANCELED') {
                     core.warning('Job ' + jobName + ' canceled.');
@@ -103,10 +104,12 @@ export async function run() {
                         res.reportIds.forEach((reportId, index) => {
                             core.info(`    report location: /testreport/${reportId}/report.xml`);
                             let environmentNames = extractEnvironmentNames(job);
-                            dtpService.publishReport(reportId, index, environmentNames.length > 0 ? environmentNames.shift() : null).catch(() => {
+                            dtpService.publishReport(reportId, index, environmentNames.length > 0 ? environmentNames.shift() : null).catch((err) => {
                                 core.error("Failed to publish report to DTP");
+				throw err;
                             });
                         });
+                        core.info(`   View results in DTP: ${this.getBaseURL()}/dtp/explorers/test?buildId=${this.metaData.dtpBuildId}`);
                     }
                     core.setFailed('Job ' + jobName + ' failed.');
                 }

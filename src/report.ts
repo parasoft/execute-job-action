@@ -35,7 +35,7 @@ export class ReportPublisher extends service.WebService {
             let dataCollectorURL = url.parse(response.services.dataCollectorV2);
             let form = new FormData();
             let protocol: 'https:' | 'http:' = dataCollectorURL.protocol === 'https:' ? 'https:' : 'http:';
-            form.append('file', fs.createReadStream(`${reportId}/report.xml`));
+            form.append('file', fs.createReadStream(`target/parasoft/soatest/${reportId}/report.xml`));
             let options: FormData.SubmitOptions = {
                 host: dataCollectorURL.hostname,
                 port: parseInt(dataCollectorURL.port),
@@ -84,21 +84,20 @@ export class ReportPublisher extends service.WebService {
                     fileData = this.injectMetaData(fileData, index, this.metaData.appendEnvironment ? environmentName : null);
                     firstCallback = false;
                 }
-                if (!fs.existsSync(`${reportId}`)){
-                    fs.mkdirSync(`${reportId}`);
+                if (!fs.existsSync(`target/parasoft/soatest/${reportId}`)){
+                    fs.mkdirSync(`target/parasoft/soatest/${reportId}`, {recursive: true});
                 }
-                fs.appendFile(`${reportId}/report.xml`, fileData, (error) => {
-                    if (error) {
-                        core.error(`Error writing report.xml: ${error.message}`);
-                        throw error;
-                    }
-                });
+                try {
+                    fs.appendFileSync(`target/parasoft/soatest/${reportId}/report.xml`, fileData);
+                } catch (error) {
+                    core.error(`Error writing report.xml: ${error.message}`);
+                }
                 return '';
             }).then(() => {
-                core.info(`    View Report:  ${this.ctpService.getBaseURL()}/testreport/${reportId}/report.html`);
+                core.info(`    Saved XML report: target/parasoft/soatest/${reportId}/report.xml`);
+                core.info(`    View report:  ${this.ctpService.getBaseURL()}/testreport/${reportId}/report.html`);
                 this.uploadFile(reportId).then(response => {
                     core.info(`   report.xml file upload successful: ${response}`);
-                    core.info(`   View Result in DTP: ${this.getBaseURL()}/dtp/explorers/test?buildId=${this.metaData.dtpBuildId}`);
                 }).catch((error) => {
                     core.error(`Error while uploading report.xml file: ${error}`);
                 });

@@ -3,7 +3,7 @@ require('./sourcemap-register.js');module.exports =
 /******/ 	var __webpack_modules__ = ({
 
 /***/ 109:
-/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
 "use strict";
 
@@ -38,9 +38,9 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.run = void 0;
-const core = __importStar(__webpack_require__(186));
-const service = __importStar(__webpack_require__(511));
-const report = __importStar(__webpack_require__(269));
+const core = __importStar(__nccwpck_require__(186));
+const service = __importStar(__nccwpck_require__(511));
+const report = __importStar(__nccwpck_require__(269));
 function extractEnvironmentNames(job) {
     let separate = job.fork, lastTestId = null, environmentNames = [];
     job.testScenarioInstances.forEach((instance => {
@@ -124,11 +124,12 @@ function run() {
                             if (dtpService) {
                                 let environmentNames = extractEnvironmentNames(job);
                                 res.reportIds.forEach((reportId, index) => {
-                                    core.info(`    report location: /testreport/${reportId}/report.xml`);
-                                    dtpService.publishReport(reportId, index, environmentNames.length > 0 ? environmentNames.shift() : null).catch(() => {
+                                    dtpService.publishReport(reportId, index, environmentNames.length > 0 ? environmentNames.shift() : null).catch((err) => {
                                         core.error("Failed to publish report to DTP");
+                                        throw err;
                                     });
                                 });
+                                core.info(`   View results in DTP: ${this.getBaseURL()}/dtp/explorers/test?buildId=${this.metaData.dtpBuildId}`);
                             }
                         }
                         else if (status === 'CANCELED') {
@@ -140,10 +141,12 @@ function run() {
                                 res.reportIds.forEach((reportId, index) => {
                                     core.info(`    report location: /testreport/${reportId}/report.xml`);
                                     let environmentNames = extractEnvironmentNames(job);
-                                    dtpService.publishReport(reportId, index, environmentNames.length > 0 ? environmentNames.shift() : null).catch(() => {
+                                    dtpService.publishReport(reportId, index, environmentNames.length > 0 ? environmentNames.shift() : null).catch((err) => {
                                         core.error("Failed to publish report to DTP");
+                                        throw err;
                                     });
                                 });
+                                core.info(`   View results in DTP: ${this.getBaseURL()}/dtp/explorers/test?buildId=${this.metaData.dtpBuildId}`);
                             }
                             core.setFailed('Job ' + jobName + ' failed.');
                         }
@@ -166,7 +169,7 @@ run();
 /***/ }),
 
 /***/ 269:
-/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
 "use strict";
 
@@ -194,12 +197,12 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.ReportPublisher = void 0;
-const service = __importStar(__webpack_require__(511));
-const q_1 = __importDefault(__webpack_require__(172));
-const form_data_1 = __importDefault(__webpack_require__(334));
-const fs_1 = __importDefault(__webpack_require__(747));
-const url_1 = __importDefault(__webpack_require__(835));
-const core = __importStar(__webpack_require__(186));
+const service = __importStar(__nccwpck_require__(511));
+const q_1 = __importDefault(__nccwpck_require__(172));
+const form_data_1 = __importDefault(__nccwpck_require__(334));
+const fs_1 = __importDefault(__nccwpck_require__(747));
+const url_1 = __importDefault(__nccwpck_require__(835));
+const core = __importStar(__nccwpck_require__(186));
 class ReportPublisher extends service.WebService {
     constructor(endpoint, context, ctpService, metaData, authorization) {
         super(endpoint, context, authorization);
@@ -212,7 +215,7 @@ class ReportPublisher extends service.WebService {
             let dataCollectorURL = url_1.default.parse(response.services.dataCollectorV2);
             let form = new form_data_1.default();
             let protocol = dataCollectorURL.protocol === 'https:' ? 'https:' : 'http:';
-            form.append('file', fs_1.default.createReadStream(`${reportId}/report.xml`));
+            form.append('file', fs_1.default.createReadStream(`target/parasoft/soatest/${reportId}/report.xml`));
             let options = {
                 host: dataCollectorURL.hostname,
                 port: parseInt(dataCollectorURL.port),
@@ -258,21 +261,21 @@ class ReportPublisher extends service.WebService {
                 fileData = this.injectMetaData(fileData, index, this.metaData.appendEnvironment ? environmentName : null);
                 firstCallback = false;
             }
-            if (!fs_1.default.existsSync(`${reportId}`)) {
-                fs_1.default.mkdirSync(`${reportId}`);
+            if (!fs_1.default.existsSync(`target/parasoft/soatest/${reportId}`)) {
+                fs_1.default.mkdirSync(`target/parasoft/soatest/${reportId}`, { recursive: true });
             }
-            fs_1.default.appendFile(`${reportId}/report.xml`, fileData, (error) => {
-                if (error) {
-                    core.error(`Error writing report.xml: ${error.message}`);
-                    throw error;
-                }
-            });
+            try {
+                fs_1.default.appendFileSync(`target/parasoft/soatest/${reportId}/report.xml`, fileData);
+            }
+            catch (error) {
+                core.error(`Error writing report.xml: ${error.message}`);
+            }
             return '';
         }).then(() => {
-            core.info(`    View Report:  ${this.ctpService.getBaseURL()}/testreport/${reportId}/report.html`);
+            core.info(`    Saved XML report: target/parasoft/soatest/${reportId}/report.xml`);
+            core.info(`    View report:  ${this.ctpService.getBaseURL()}/testreport/${reportId}/report.html`);
             this.uploadFile(reportId).then(response => {
                 core.info(`   report.xml file upload successful: ${response}`);
-                core.info(`   View Result in DTP: ${this.getBaseURL()}/dtp/explorers/test?buildId=${this.metaData.dtpBuildId}`);
             }).catch((error) => {
                 core.error(`Error while uploading report.xml file: ${error}`);
             });
@@ -309,7 +312,7 @@ exports.ReportPublisher = ReportPublisher;
 /***/ }),
 
 /***/ 511:
-/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
 "use strict";
 
@@ -337,11 +340,11 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.WebService = void 0;
-const core = __importStar(__webpack_require__(186));
-const http_1 = __importDefault(__webpack_require__(605));
-const https_1 = __importDefault(__webpack_require__(211));
-const url_1 = __importDefault(__webpack_require__(835));
-const q_1 = __importDefault(__webpack_require__(172));
+const core = __importStar(__nccwpck_require__(186));
+const http_1 = __importDefault(__nccwpck_require__(605));
+const https_1 = __importDefault(__nccwpck_require__(211));
+const url_1 = __importDefault(__nccwpck_require__(835));
+const q_1 = __importDefault(__nccwpck_require__(172));
 class WebService {
     constructor(endpoint, context, authorization) {
         this.baseURL = url_1.default.parse(endpoint);
@@ -481,7 +484,7 @@ exports.WebService = WebService;
 /***/ }),
 
 /***/ 351:
-/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
 "use strict";
 
@@ -493,8 +496,8 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-const os = __importStar(__webpack_require__(87));
-const utils_1 = __webpack_require__(278);
+const os = __importStar(__nccwpck_require__(87));
+const utils_1 = __nccwpck_require__(278);
 /**
  * Commands
  *
@@ -567,7 +570,7 @@ function escapeProperty(s) {
 /***/ }),
 
 /***/ 186:
-/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
 "use strict";
 
@@ -588,11 +591,11 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-const command_1 = __webpack_require__(351);
-const file_command_1 = __webpack_require__(717);
-const utils_1 = __webpack_require__(278);
-const os = __importStar(__webpack_require__(87));
-const path = __importStar(__webpack_require__(622));
+const command_1 = __nccwpck_require__(351);
+const file_command_1 = __nccwpck_require__(717);
+const utils_1 = __nccwpck_require__(278);
+const os = __importStar(__nccwpck_require__(87));
+const path = __importStar(__nccwpck_require__(622));
 /**
  * The code to exit an action
  */
@@ -812,7 +815,7 @@ exports.getState = getState;
 /***/ }),
 
 /***/ 717:
-/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
 "use strict";
 
@@ -827,9 +830,9 @@ var __importStar = (this && this.__importStar) || function (mod) {
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 // We use any as a valid input type
 /* eslint-disable @typescript-eslint/no-explicit-any */
-const fs = __importStar(__webpack_require__(747));
-const os = __importStar(__webpack_require__(87));
-const utils_1 = __webpack_require__(278);
+const fs = __importStar(__nccwpck_require__(747));
+const os = __importStar(__nccwpck_require__(87));
+const utils_1 = __nccwpck_require__(278);
 function issueCommand(command, message) {
     const filePath = process.env[`GITHUB_${command}`];
     if (!filePath) {
@@ -874,13 +877,13 @@ exports.toCommandValue = toCommandValue;
 /***/ }),
 
 /***/ 812:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
 module.exports =
 {
-  parallel      : __webpack_require__(210),
-  serial        : __webpack_require__(445),
-  serialOrdered : __webpack_require__(578)
+  parallel      : __nccwpck_require__(210),
+  serial        : __nccwpck_require__(445),
+  serialOrdered : __nccwpck_require__(578)
 };
 
 
@@ -923,9 +926,9 @@ function clean(key)
 /***/ }),
 
 /***/ 794:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
-var defer = __webpack_require__(295);
+var defer = __nccwpck_require__(295);
 
 // API
 module.exports = async;
@@ -997,10 +1000,10 @@ function defer(fn)
 /***/ }),
 
 /***/ 23:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
-var async = __webpack_require__(794)
-  , abort = __webpack_require__(700)
+var async = __nccwpck_require__(794)
+  , abort = __nccwpck_require__(700)
   ;
 
 // API
@@ -1123,10 +1126,10 @@ function state(list, sortMethod)
 /***/ }),
 
 /***/ 942:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
-var abort = __webpack_require__(700)
-  , async = __webpack_require__(794)
+var abort = __nccwpck_require__(700)
+  , async = __nccwpck_require__(794)
   ;
 
 // API
@@ -1159,11 +1162,11 @@ function terminator(callback)
 /***/ }),
 
 /***/ 210:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
-var iterate    = __webpack_require__(23)
-  , initState  = __webpack_require__(474)
-  , terminator = __webpack_require__(942)
+var iterate    = __nccwpck_require__(23)
+  , initState  = __nccwpck_require__(474)
+  , terminator = __nccwpck_require__(942)
   ;
 
 // Public API
@@ -1209,9 +1212,9 @@ function parallel(list, iterator, callback)
 /***/ }),
 
 /***/ 445:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
-var serialOrdered = __webpack_require__(578);
+var serialOrdered = __nccwpck_require__(578);
 
 // Public API
 module.exports = serial;
@@ -1233,11 +1236,11 @@ function serial(list, iterator, callback)
 /***/ }),
 
 /***/ 578:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
-var iterate    = __webpack_require__(23)
-  , initState  = __webpack_require__(474)
-  , terminator = __webpack_require__(942)
+var iterate    = __nccwpck_require__(23)
+  , initState  = __nccwpck_require__(474)
+  , terminator = __nccwpck_require__(942)
   ;
 
 // Public API
@@ -1315,11 +1318,11 @@ function descending(a, b)
 /***/ }),
 
 /***/ 443:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
-var util = __webpack_require__(669);
-var Stream = __webpack_require__(413).Stream;
-var DelayedStream = __webpack_require__(611);
+var util = __nccwpck_require__(669);
+var Stream = __nccwpck_require__(413).Stream;
+var DelayedStream = __nccwpck_require__(611);
 
 module.exports = CombinedStream;
 function CombinedStream() {
@@ -1530,10 +1533,10 @@ CombinedStream.prototype._emitError = function(err) {
 /***/ }),
 
 /***/ 611:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
-var Stream = __webpack_require__(413).Stream;
-var util = __webpack_require__(669);
+var Stream = __nccwpck_require__(413).Stream;
+var util = __nccwpck_require__(669);
 
 module.exports = DelayedStream;
 function DelayedStream() {
@@ -1644,18 +1647,18 @@ DelayedStream.prototype._checkIfMaxDataSizeExceeded = function() {
 /***/ }),
 
 /***/ 334:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
-var CombinedStream = __webpack_require__(443);
-var util = __webpack_require__(669);
-var path = __webpack_require__(622);
-var http = __webpack_require__(605);
-var https = __webpack_require__(211);
-var parseUrl = __webpack_require__(835).parse;
-var fs = __webpack_require__(747);
-var mime = __webpack_require__(583);
-var asynckit = __webpack_require__(812);
-var populate = __webpack_require__(142);
+var CombinedStream = __nccwpck_require__(443);
+var util = __nccwpck_require__(669);
+var path = __nccwpck_require__(622);
+var http = __nccwpck_require__(605);
+var https = __nccwpck_require__(211);
+var parseUrl = __nccwpck_require__(835).parse;
+var fs = __nccwpck_require__(747);
+var mime = __nccwpck_require__(583);
+var asynckit = __nccwpck_require__(812);
+var populate = __nccwpck_require__(142);
 
 // Public API
 module.exports = FormData;
@@ -2162,7 +2165,7 @@ module.exports = function(dst, src) {
 /***/ }),
 
 /***/ 426:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
 /*!
  * mime-db
@@ -2174,13 +2177,13 @@ module.exports = function(dst, src) {
  * Module exports.
  */
 
-module.exports = __webpack_require__(313)
+module.exports = __nccwpck_require__(313)
 
 
 /***/ }),
 
 /***/ 583:
-/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
 /*!
@@ -2197,8 +2200,8 @@ module.exports = __webpack_require__(313)
  * @private
  */
 
-var db = __webpack_require__(426)
-var extname = __webpack_require__(622).extname
+var db = __nccwpck_require__(426)
+var extname = __nccwpck_require__(622).extname
 
 /**
  * Module variables.
@@ -4505,7 +4508,7 @@ module.exports = require("util");;
 /******/ 	var __webpack_module_cache__ = {};
 /******/ 	
 /******/ 	// The require function
-/******/ 	function __webpack_require__(moduleId) {
+/******/ 	function __nccwpck_require__(moduleId) {
 /******/ 		// Check if module is in cache
 /******/ 		if(__webpack_module_cache__[moduleId]) {
 /******/ 			return __webpack_module_cache__[moduleId].exports;
@@ -4520,7 +4523,7 @@ module.exports = require("util");;
 /******/ 		// Execute the module function
 /******/ 		var threw = true;
 /******/ 		try {
-/******/ 			__webpack_modules__[moduleId].call(module.exports, module, module.exports, __webpack_require__);
+/******/ 			__webpack_modules__[moduleId].call(module.exports, module, module.exports, __nccwpck_require__);
 /******/ 			threw = false;
 /******/ 		} finally {
 /******/ 			if(threw) delete __webpack_module_cache__[moduleId];
@@ -4533,11 +4536,11 @@ module.exports = require("util");;
 /************************************************************************/
 /******/ 	/* webpack/runtime/compat */
 /******/ 	
-/******/ 	__webpack_require__.ab = __dirname + "/";/************************************************************************/
+/******/ 	__nccwpck_require__.ab = __dirname + "/";/************************************************************************/
 /******/ 	// module exports must be returned from runtime so entry inlining is disabled
 /******/ 	// startup
 /******/ 	// Load entry module and return exports
-/******/ 	return __webpack_require__(109);
+/******/ 	return __nccwpck_require__(109);
 /******/ })()
 ;
 //# sourceMappingURL=index.js.map
