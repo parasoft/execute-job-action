@@ -1,5 +1,5 @@
 name: 'Execute Job'
-description: 'Execute a job in Parasoft Continuout Testing Platform'
+description: 'Execute a job in Parasoft Continuous Testing Platform'
 author: 'Parasoft'
 branding:
   icon: 'aperture'

@@ -4,7 +4,7 @@
 
 # Execute a Parasoft CTP Job
 
-This action executes a test scenario job located at the specified Parasoft Continous Testing Platform endpoint.
+This action executes a test scenario job located at the specified Parasoft Continuous Testing Platform endpoint.
 
 ## Usage
 
