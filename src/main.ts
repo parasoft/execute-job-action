@@ -98,7 +98,11 @@ export async function run() {
                             });
                         });
                         core.info(`   View results in DTP: ${this.getBaseURL()}/dtp/explorers/test?buildId=${this.metaData.dtpBuildId}`);
-                    }
+                    } else {
+			    res.reportIds.forEach((reportId, index) => {
+                                core.info(`    View report:  ${this.ctpService.getBaseURL()}/testreport/${reportId}/report.html`);
+			    });
+		    }
                 } else if (status === 'CANCELED') {
                     core.warning('Job ' + jobName + ' canceled.');
                 } else {
@@ -115,7 +119,10 @@ export async function run() {
                                 }
                             });
                         });
-                        core.info(`   View results in DTP: ${this.getBaseURL()}/dtp/explorers/test?buildId=${this.metaData.dtpBuildId}`);
+                    } else {
+			    res.reportIds.forEach((reportId, index) => {
+                                core.info(`    View report:  ${this.ctpService.getBaseURL()}/testreport/${reportId}/report.html`);
+			    });
                     }
                     core.setFailed('Job ' + jobName + ' failed.');
                 }
