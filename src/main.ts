@@ -49,7 +49,7 @@ export async function run() {
     const jobName = core.getInput('ctpJob', { required: true });
     let job: EMJob;
     ctpService.performGET<EMJob>('/api/v2/jobs', (res, def, responseStr) => {
-        core.info(`    response ${res.statusCode}: ${responseStr}`);
+        core.debug(`    response ${res.statusCode}: ${responseStr}`);
         let allJobs: { jobs: EMJob[]} = JSON.parse(responseStr);
         if (typeof allJobs.jobs === 'undefined') {
             def.reject('jobs' + ' does not exist in response object from /api/v2/jobs');
@@ -62,7 +62,7 @@ export async function run() {
         }
         def.reject(`Could not find name ${jobName } in jobs from /api/v2/jobs`);
     }).then((response: EMJob) => {
-        core.info(`Found job ${response.name} with id ${response.id}`);
+        core.info(`Executing "${response.name}" on ${ctpService.getBaseURL()}`);
         job = response;
         return ctpService.performPOST<EMJobHistory>(`/api/v2/jobs/${job.id}/histories?async=true`, {});
     }).then((res: EMJobHistory) => {
@@ -78,14 +78,14 @@ export async function run() {
                     if (timespent > timeoutNum) {
                         ctpService.performPUT(`/api/v2/jobs/${job.id}/histories/${historyId}`, { status: 'CANCELED' });
                         core.error(`Test execution job timed out after ${timeoutNum} minute"${timeoutNum > 1 ? 's' : ""}.`);
-                        core.setFailed('Job ' + jobName + ' timed out.');
+                        core.setFailed('Job "' + jobName + '" timed out.');
                         return;
                     }
                 }
                 if (status === 'RUNNING' || status === 'WAITING') {
                     setTimeout(checkStatus, 1000);
                 } else if (status === 'PASSED') {
-                    core.info('Job ' + jobName + ' passed.');
+                    core.info('All tests passed.');
                     if (dtpService) {
                         let environmentNames = extractEnvironmentNames(job);
                         res.reportIds.forEach((reportId, index) => {
@@ -97,19 +97,18 @@ export async function run() {
                                 }
                             });
                         });
-                        core.info(`   View results in DTP: ${this.getBaseURL()}/dtp/explorers/test?buildId=${this.metaData.dtpBuildId}`);
+                        core.info(`   View results in DTP: ${dtpService.getBaseURL()}/dtp/explorers/test?buildId=${this.metaData.dtpBuildId}`);
                     } else {
 			    res.reportIds.forEach((reportId, index) => {
-                                core.info(`    View report:  ${this.ctpService.getBaseURL()}/testreport/${reportId}/report.html`);
+                                core.info(`   View report in CTP:  ${this.ctpService.getBaseURL()}/testreport/${reportId}/report.html`);
 			    });
 		    }
                 } else if (status === 'CANCELED') {
-                    core.warning('Job ' + jobName + ' canceled.');
+                    core.warning('Test execution was canceled.');
                 } else {
-                    core.error('Job ' + jobName + ' failed.');
+                    core.error('Some tests failed.');
                     if (dtpService) {
                         res.reportIds.forEach((reportId, index) => {
-                            core.info(`    report location: /testreport/${reportId}/report.xml`);
                             let environmentNames = extractEnvironmentNames(job);
                             dtpService.publishReport(reportId, index, environmentNames.length > 0 ? environmentNames.shift() : null).catch((err) => {
                                 core.error("Failed to publish report to DTP");
@@ -121,10 +120,10 @@ export async function run() {
                         });
                     } else {
 			    res.reportIds.forEach((reportId, index) => {
-                                core.info(`    View report:  ${this.ctpService.getBaseURL()}/testreport/${reportId}/report.html`);
+                                core.info(`   View report in CTP:  ${this.ctpService.getBaseURL()}/testreport/${reportId}/report.html`);
 			    });
                     }
-                    core.setFailed('Job ' + jobName + ' failed.');
+                    core.setFailed('Job "' + jobName + '" failed.');
                 }
             });
         };

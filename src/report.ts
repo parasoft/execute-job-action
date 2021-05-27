@@ -51,7 +51,7 @@ export class ReportPublisher extends service.WebService {
                     options.auth = this.authorization['username'] + ':' + this.authorization['password'];
                 }
             }
-            core.info(`POST ${options.protocol}//${options.host}${options.port ? `:${options.port}` : ""}${options.path}`);
+            core.debug(`POST ${options.protocol}//${options.host}${options.port ? `:${options.port}` : ""}${options.path}`);
             form.submit(options, (err, res) => {
                 if (err) {
                     return def.reject(new Error(err.message));
@@ -103,10 +103,10 @@ export class ReportPublisher extends service.WebService {
                 }
                 return '';
             }).then(() => {
-                core.info(`    Saved XML report: target/parasoft/soatest/${reportId}/report.xml`);
-                core.info(`    View report:  ${this.ctpService.getBaseURL()}/testreport/${reportId}/report.html`);
+                core.info(`   Saved XML report: target/parasoft/soatest/${reportId}/report.xml`);
+                core.info(`   View report in CTP:  ${this.ctpService.getBaseURL()}/testreport/${reportId}/report.html`);
                 this.uploadFile(reportId).then(response => {
-                    core.info(`   report.xml file upload successful: ${response}`);
+                    core.debug(`   report.xml file upload successful: ${response}`);
 		    def.resolve();
                 }).catch((error) => {
                     core.error(`Error while uploading report.xml file: ${error}`);

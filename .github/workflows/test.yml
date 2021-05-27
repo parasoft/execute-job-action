@@ -14,22 +14,12 @@ jobs:
       - run: |
           npm install
       - run: |
-          npm run all
+          npm run build
+      - run: |
+          npm run package
   test: # make sure the action works on a clean machine without building
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - uses: ./
-        with:
-          ctpUrl: 'http://104.42.225.105/em'
-          ctpUsername: 'admin'
-          ctpPassword: 'admin'
-          ctpJob: 'Status Job'
-          publishReport: 'true'
-          dtpUrl: 'http://54.149.98.67:8080'
-          dtpUsername: 'demo'
-          dtpPassword: 'demo-user'
-          dtpProject: 'Parabank-v3'
-          buildId: 'Parabank-v3-2021-01-21'
-          sessionTag: 'Parabank-v3-Session'
-          appendEnvironment: 'true'
+      - run: |
+          npm test

@@ -60,7 +60,7 @@ export class WebService {
         if (this.authorization && this.authorization['username']) {
             options.auth = this.authorization['username'] + ':' + this.authorization['password'];
         }
-        core.info(`GET ${this.protocolLabel}//${options.host}${options.port ? `:${options.port}` : ""}${options.path}`);
+        core.debug(`GET ${this.protocolLabel}//${options.host}${options.port ? `:${options.port}` : ""}${options.path}`);
         let responseString = "";
         this.protocol.get(options, (res) => {
             res.setEncoding('utf8');
@@ -77,12 +77,12 @@ export class WebService {
                     if (redirectPath.startsWith(this.baseURL.path)) {
                         redirectPath = redirectPath.substring(3);
                     }
-                    core.info('    redirect to "' + redirectPath + '"');
+                    core.debug('   redirect to "' + redirectPath + '"');
                     this.performGET<T>(redirectPath, handler, dataHandler).then(response => def.resolve(response));
                 } else if (handler) {
                     handler(res, def, responseString);
                 } else {
-                    core.info(`   response ${res.statusCode}: ${responseString}`);
+                    core.debug(`   response ${res.statusCode}: ${responseString}`);
                     let responseObject = JSON.parse(responseString);
                     def.resolve(responseObject);
                 }
@@ -132,7 +132,7 @@ export class WebService {
         if (this.authorization && this.authorization['username']) {
             options.auth = this.authorization['username'] + ':' + this.authorization['password'];
         }
-        core.info(`${method} ${this.protocolLabel}//${options.host}${options.port ? `:${options.port}`: ""}${options.path}`);
+        core.debug(`${method} ${this.protocolLabel}//${options.host}${options.port ? `:${options.port}`: ""}${options.path}`);
         let responseString = "";
         let req = this.protocol.request(options, (res) => {
             res.setEncoding('utf8');
@@ -140,7 +140,7 @@ export class WebService {
                 responseString += chunk;
             });
             res.on('end', () => {
-                core.info(`    response ${res.statusCode}: ${responseString}`);
+                core.debug(`    response ${res.statusCode}: ${responseString}`);
                 let responseObject = JSON.parse(responseString);
                 def.resolve(responseObject);
             });
