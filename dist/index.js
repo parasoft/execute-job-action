@@ -68,23 +68,20 @@ function run() {
         let dtpService = null;
         const publish = core.getInput('publishReport') === 'true';
         const dtpEndpoint = core.getInput('dtpUrl', { required: false });
-        var dtpAuthorization = null;
-        if (dtpEndpoint) {
-            dtpAuthorization = { username: core.getInput('dtpUsername'), password: core.getInput('dtpPassword') };
-        }
         const dtpProject = core.getInput('dtpProject');
         const dtpBuildId = core.getInput('buildId');
         let dtpSessionTag = core.getInput('sessionTag');
         const appendEnvironment = core.getInput('appendEnvironment') === 'true';
+        let metaData = {
+            dtpProject: dtpProject,
+            dtpBuildId: dtpBuildId,
+            dtpSessionTag: dtpSessionTag,
+            appendEnvironment: appendEnvironment
+        };
         if (dtpEndpoint && publish) {
-            let metaData = {
-                dtpProject: dtpProject,
-                dtpBuildId: dtpBuildId,
-                dtpSessionTag: dtpSessionTag,
-                appendEnvironment: appendEnvironment
-            };
-            dtpService = new report.ReportPublisher(dtpEndpoint, 'grs', ctpService, metaData, dtpAuthorization);
+            dtpService = new service.WebService(dtpEndpoint, 'grs', { username: core.getInput('dtpUsername'), password: core.getInput('dtpPassword') });
         }
+        let reportController = new report.ReportController(ctpService, dtpService, metaData);
         const abortOnTimout = core.getInput('abortOnTimeout') === 'true';
         const timeout = core.getInput('timeoutInMinutes');
         const jobName = core.getInput('ctpJob', { required: true });
@@ -126,49 +123,35 @@ function run() {
                         if (status === 'RUNNING' || status === 'WAITING') {
                             setTimeout(checkStatus, 1000);
                         }
-                        else if (status === 'PASSED') {
-                            core.info('All tests passed.');
-                            if (dtpService) {
-                                let environmentNames = extractEnvironmentNames(job);
-                                res.reportIds.forEach((reportId, index) => {
-                                    dtpService.publishReport(reportId, index, environmentNames.length > 0 ? environmentNames.shift() : null).catch((err) => {
-                                        core.error("Failed to publish report to DTP");
-                                    }).then(() => {
-                                        if (index === 0) {
-                                            console.log('   View results in DTP: ' + dtpService.getBaseURL() + '/dtp/explorers/test?buildId=' + dtpBuildId);
-                                        }
-                                    });
-                                });
-                            }
-                            else {
-                                res.reportIds.forEach((reportId, index) => {
-                                    core.info(`   View report in CTP:  ${ctpService.getBaseURL()}/testreport/${reportId}/report.html`);
-                                });
-                            }
-                        }
                         else if (status === 'CANCELED') {
                             core.warning('Test execution was canceled.');
                         }
                         else {
-                            core.error('Some tests failed.');
-                            if (dtpService) {
-                                res.reportIds.forEach((reportId, index) => {
-                                    let environmentNames = extractEnvironmentNames(job);
-                                    dtpService.publishReport(reportId, index, environmentNames.length > 0 ? environmentNames.shift() : null).catch((err) => {
-                                        core.error("Failed to publish report to DTP");
-                                    }).then(() => {
-                                        if (index === 0) {
-                                            console.log('   View results in DTP: ' + dtpService.getBaseURL() + '/dtp/explorers/test?buildId=' + dtpBuildId);
-                                        }
-                                    });
-                                });
+                            if (status === 'PASSED') {
+                                core.info('All tests passed.');
                             }
                             else {
-                                res.reportIds.forEach((reportId, index) => {
-                                    core.info(`   View report in CTP:  ${ctpService.getBaseURL()}/testreport/${reportId}/report.html`);
-                                });
+                                core.setFailed('Some tests failed.');
                             }
-                            core.setFailed('Job "' + jobName + '" failed.');
+                            let environmentNames = extractEnvironmentNames(job);
+                            res.reportIds.forEach((reportId, index) => {
+                                let downloadPromise = reportController.downloadReport(reportId, index, environmentNames.length > 0 ? environmentNames.shift() : null).catch((err) => {
+                                    core.error("Failed to download report from CTP");
+                                });
+                                if (dtpService) {
+                                    downloadPromise.then(() => {
+                                        reportController.uploadFile(reportId).then(response => {
+                                            core.debug(`   report.xml file upload successful: ${response}`);
+                                            if (index === 0) {
+                                                core.info('   View results in DTP: ' + dtpService.getBaseURL() + '/dtp/explorers/test?buildId=' + dtpBuildId);
+                                            }
+                                        }).catch((error) => {
+                                            core.error(`Error while uploading report.xml file: ${error}`);
+                                            core.error("Failed to publish report to DTP");
+                                        });
+                                    });
+                                }
+                            });
                         }
                     });
                 });
@@ -216,22 +199,21 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.ReportPublisher = void 0;
-const service = __importStar(__nccwpck_require__(511));
+exports.ReportController = void 0;
 const q_1 = __importDefault(__nccwpck_require__(172));
 const form_data_1 = __importDefault(__nccwpck_require__(334));
 const fs_1 = __importDefault(__nccwpck_require__(747));
 const url_1 = __importDefault(__nccwpck_require__(835));
 const core = __importStar(__nccwpck_require__(186));
-class ReportPublisher extends service.WebService {
-    constructor(endpoint, context, ctpService, metaData, authorization) {
-        super(endpoint, context, authorization);
+class ReportController {
+    constructor(ctpService, dtpService, metaData) {
         this.ctpService = ctpService;
+        this.dtpService = dtpService;
         this.metaData = metaData;
     }
     uploadFile(reportId) {
         let def = q_1.default.defer();
-        this.performGET('/api/v1.6/services').then((response) => {
+        this.dtpService.performGET('/api/v1.6/services').then((response) => {
             let dataCollectorURL = url_1.default.parse(response.services.dataCollectorV2);
             let form = new form_data_1.default();
             let protocol = dataCollectorURL.protocol === 'https:' ? 'https:' : 'http:';
@@ -247,8 +229,8 @@ class ReportPublisher extends service.WebService {
             if (protocol === 'https:') {
                 options['rejectUnauthorized'] = false;
                 options['agent'] = false;
-                if (this.authorization && this.authorization['username']) {
-                    options.auth = this.authorization['username'] + ':' + this.authorization['password'];
+                if (this.dtpService.authorization && this.dtpService.authorization['username']) {
+                    options.auth = this.dtpService.authorization['username'] + ':' + this.dtpService.authorization['password'];
                 }
             }
             core.debug(`POST ${options.protocol}//${options.host}${options.port ? `:${options.port}` : ""}${options.path}`);
@@ -271,7 +253,7 @@ class ReportPublisher extends service.WebService {
         });
         return def.promise;
     }
-    publishReport(reportId, index, environmentName) {
+    downloadReport(reportId, index, environmentName) {
         let def = q_1.default.defer(), firstCallback = true;
         this.ctpService.performGET(`/testreport/${reportId}/report.xml`, (res, def, responseStr) => {
             def.resolve(responseStr);
@@ -303,13 +285,7 @@ class ReportPublisher extends service.WebService {
         }).then(() => {
             core.info(`   Saved XML report: target/parasoft/soatest/${reportId}/report.xml`);
             core.info(`   View report in CTP:  ${this.ctpService.getBaseURL()}/testreport/${reportId}/report.html`);
-            this.uploadFile(reportId).then(response => {
-                core.debug(`   report.xml file upload successful: ${response}`);
-                def.resolve();
-            }).catch((error) => {
-                core.error(`Error while uploading report.xml file: ${error}`);
-                def.reject(error);
-            });
+            def.resolve();
         });
         return def.promise;
     }
@@ -337,7 +313,7 @@ class ReportPublisher extends service.WebService {
         return source.replace(regEx, attribute + '="' + newValue + '"');
     }
 }
-exports.ReportPublisher = ReportPublisher;
+exports.ReportController = ReportController;
 
 
 /***/ }),

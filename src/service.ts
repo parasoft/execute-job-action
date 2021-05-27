@@ -16,7 +16,7 @@ export class WebService {
     private baseURL: url.Url;
     protected protocol: typeof https | typeof http;
     protected protocolLabel: string;
-    protected authorization: Authorization;
+    public authorization: Authorization;
 
     constructor(endpoint: string, context: string, authorization?: Authorization) {
         this.baseURL = url.parse(endpoint);

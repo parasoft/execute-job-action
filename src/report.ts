@@ -12,26 +12,25 @@ export interface ReportMetaData {
     appendEnvironment : boolean
 }
 
-export class ReportPublisher extends service.WebService {
+export class ReportController {
     private ctpService: service.WebService;
+    private dtpService: service.WebService;
     private metaData: ReportMetaData;
 
     constructor(
-        endpoint: string, 
-        context: string, 
         ctpService: service.WebService,
-        metaData : ReportMetaData,
-        authorization?: service.Authorization) 
+        dtpService: service.WebService,
+        metaData : ReportMetaData)
     {
-        super(endpoint, context, authorization)
         this.ctpService = ctpService;
+        this.dtpService = dtpService;
         this.metaData = metaData;
     }
     
 
-    uploadFile<T>(reportId: number): q.Promise<T>{
+    uploadFile<T>(reportId: number): q.Promise<T> {
         let def = q.defer<T>();
-        this.performGET('/api/v1.6/services').then((response: any) => {
+        this.dtpService.performGET('/api/v1.6/services').then((response: any) => {
             let dataCollectorURL = url.parse(response.services.dataCollectorV2);
             let form = new FormData();
             let protocol: 'https:' | 'http:' = dataCollectorURL.protocol === 'https:' ? 'https:' : 'http:';
@@ -47,8 +46,8 @@ export class ReportPublisher extends service.WebService {
             if (protocol === 'https:') {
                 options['rejectUnauthorized'] = false;
                 options['agent'] = false;
-                if (this.authorization && this.authorization['username']) {
-                    options.auth = this.authorization['username'] + ':' + this.authorization['password'];
+                if (this.dtpService.authorization && this.dtpService.authorization['username']) {
+                    options.auth = this.dtpService.authorization['username'] + ':' + this.dtpService.authorization['password'];
                 }
             }
             core.debug(`POST ${options.protocol}//${options.host}${options.port ? `:${options.port}` : ""}${options.path}`);
@@ -72,7 +71,7 @@ export class ReportPublisher extends service.WebService {
         return def.promise;
     }
 
-   public publishReport(reportId: number, index: number, environmentName?: string): q.Promise<void> {
+    public downloadReport(reportId: number, index: number, environmentName?: string): q.Promise<void> {
         let def = q.defer<void>(),
             firstCallback = true;
         this.ctpService.performGET(`/testreport/${reportId}/report.xml`, (res, def, responseStr) => {
@@ -105,13 +104,7 @@ export class ReportPublisher extends service.WebService {
             }).then(() => {
                 core.info(`   Saved XML report: target/parasoft/soatest/${reportId}/report.xml`);
                 core.info(`   View report in CTP:  ${this.ctpService.getBaseURL()}/testreport/${reportId}/report.html`);
-                this.uploadFile(reportId).then(response => {
-                    core.debug(`   report.xml file upload successful: ${response}`);
-		    def.resolve();
-                }).catch((error) => {
-                    core.error(`Error while uploading report.xml file: ${error}`);
-		    def.reject(error);
-                });
+                def.resolve();
             });
         return def.promise;
     }

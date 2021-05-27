@@ -13,10 +13,20 @@ Add the following entry to your Github workflow YAML file with the required inpu
 ```yaml
 uses: parasoft/execute-job-action@v1
 with:
-  ctpUrl: 'http://exampleUrl'
+  ctpUrl: 'http://ctp.mycompany.org:8080/em/'
   ctpUsername: 'username'
   ctpPassword: ${{ secrets.password }}
   ctpJob: 'Example Job'
+  abortOnTimeout: false
+  timeoutInMinutes: 5
+  publishReport: false
+  dtpUrl: 'http://dtp.mycompany.org:8080/grs/'
+  dtpUsername: 'username'
+  dtpPassword: ${{ secrets.password }}
+  dtpProject: 'My Project'
+  buildId: ${{ github.run_number }}
+  sessionTag: ${{ github.workflow }}
+  appendEnvironment: false
 ```
 ### Required Inputs
 The following inputs are required:
