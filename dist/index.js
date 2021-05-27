@@ -139,11 +139,10 @@ function run() {
                                         }
                                     });
                                 });
-                                core.info(`   View results in DTP: ${dtpService.getBaseURL()}/dtp/explorers/test?buildId=${this.metaData.dtpBuildId}`);
                             }
                             else {
                                 res.reportIds.forEach((reportId, index) => {
-                                    core.info(`   View report in CTP:  ${this.ctpService.getBaseURL()}/testreport/${reportId}/report.html`);
+                                    core.info(`   View report in CTP:  ${ctpService.getBaseURL()}/testreport/${reportId}/report.html`);
                                 });
                             }
                         }
@@ -166,7 +165,7 @@ function run() {
                             }
                             else {
                                 res.reportIds.forEach((reportId, index) => {
-                                    core.info(`   View report in CTP:  ${this.ctpService.getBaseURL()}/testreport/${reportId}/report.html`);
+                                    core.info(`   View report in CTP:  ${ctpService.getBaseURL()}/testreport/${reportId}/report.html`);
                                 });
                             }
                             core.setFailed('Job "' + jobName + '" failed.');
